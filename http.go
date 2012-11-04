@@ -219,7 +219,6 @@ func apiPeerInfoPage(w http.ResponseWriter, req *http.Request) {
 			attributes["In"] = in
 			attributes["Common"] = common
 		}
-		Log.Printf("Showing peer info %s -> %s", peer, other)
 		serveTemplates["pi_peers"].Execute(w, attributes)
 	}
 
