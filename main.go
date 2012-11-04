@@ -9,6 +9,7 @@ import (
 )
 
 var (
+	flSpiderStartHost    = flag.String("spider-start-host", "sks-peer.spodhuis.org", "Host to query to start things rolling")
 	flMaintEmail         = flag.String("maint-email", "webmaster@spodhuis.org", "Email address of local maintainer")
 	flSksMembershipFile  = flag.String("sks-membership-file", "/var/sks/membership", "SKS Membership file")
 	flSksPortRecon       = flag.Int("sks-port-recon", 11370, "Default SKS recon port")
@@ -20,6 +21,8 @@ var (
 	flScanIntervalSecs   = flag.Int("scan-interval", 3600*8, "How often to trigger a scan")
 	flScanIntervalJitter = flag.Int("scan-interval-jitter", 120, "Jitter in scan interval")
 	flLogFile            = flag.String("log-file", "sksdaemon.log", "Where to write logfiles")
+	flJsonDump           = flag.String("json-dump", "", "File to dump JSON of spidered hosts to")
+	flJsonLoad           = flag.String("json-load", "", "File to load JSON hosts from instead of spidering")
 )
 
 var serverHeadersNative = map[string]bool{
@@ -61,17 +64,30 @@ func Main() {
 	setupLogging()
 	Log.Printf("started")
 
-	/*
-		node := &SksNode{Hostname: "sks.spodhuis.org"}
-		node.Fetch()
-		node.Analyze()
-		node.Dump(os.Stdout)
-	*/
-	spider := StartSpider()
-	spider.AddHost("sks-peer.spodhuis.org")
-	stop := make(chan bool)
-	go statusPeriodicDump(spider, stop)
-	spider.Wait()
-	stop <- true
+	var spider *Spider
+	var err error
+
+	if *flJsonLoad != "" {
+		Log.Printf("Loading hosts from \"%s\" instead of spidering", *flJsonLoad)
+		spider, err = LoadJSONFromFile(*flJsonLoad)
+		if err != nil {
+			Log.Fatalf("Failed to load JSON from \"%s\": %s", *flJsonLoad, err)
+		}
+	} else {
+		spider = StartSpider()
+		spider.AddHost(*flSpiderStartHost)
+		//stop := make(chan bool)
+		//go statusPeriodicDump(spider, stop)
+		spider.Wait()
+		//stop <- true
+		if *flJsonDump != "" {
+			err = spider.DumpJSONToFile(*flJsonDump)
+			if err != nil {
+				Log.Printf("Error saving JSON to \"%s\": %s", *flJsonDump, err)
+				// continue anyway
+			}
+		}
+	}
+
 	fmt.Printf("\nSPIDER: %#+v\n", spider)
 }
