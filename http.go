@@ -105,7 +105,7 @@ func apiPeersPage(w http.ResponseWriter, req *http.Request) {
 		}
 		attributes["Hostname"] = host
 		attributes["Sks_info"] = NodeUrl(host, node)
-		attributes["Info_page"] = fmt.Sprintf("/peer-info?peer=%s", host)
+		attributes["Info_page"] = fmt.Sprintf(SERVE_PREFIX + "/peer-info?peer=%s", host)
 
 		if node.AnalyzeError != nil {
 			attributes["Error"] = node.AnalyzeError.Error()
