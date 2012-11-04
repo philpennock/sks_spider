@@ -4,7 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
+	"runtime"
+	"sync"
 	"time"
 )
 
@@ -60,8 +63,56 @@ func statusPeriodicDump(spider *Spider, stop <-chan bool) {
 	}
 }
 
+// TODO: switch to a straight map, drop the spider gunk
+var (
+	currentMesh     *Spider
+	currentMeshLock sync.Mutex
+)
+
+func GetCurrentMesh() *Spider {
+	currentMeshLock.Lock()
+	defer currentMeshLock.Unlock()
+	return currentMesh
+}
+
+func SetCurrentMesh(spider *Spider) {
+	currentMeshLock.Lock()
+	defer currentMeshLock.Unlock()
+	currentMesh = spider
+}
+
+func respiderPeriodically() {
+	for {
+		var delay time.Duration = time.Duration(*flScanIntervalSecs) * time.Second
+		if *flScanIntervalJitter > 0 {
+			jitter := rand.Int63n(int64(*flScanIntervalJitter) * int64(time.Second))
+			jitter -= int64(*flScanIntervalJitter) * int64(time.Second) / 2
+			delay += time.Duration(jitter)
+		}
+		minDelay := time.Minute * 30
+		if delay < minDelay {
+			Log.Printf("respider period too low, capping %d up to %d", delay, minDelay)
+			delay = minDelay
+		}
+		Log.Printf("Sleeping %s before next respider", delay)
+		time.Sleep(delay)
+		Log.Printf("Awoken!  Time to spider.")
+		spider := StartSpider()
+		spider.AddHost(*flSpiderStartHost)
+		spider.Wait()
+		SetCurrentMesh(spider)
+		runtime.GC()
+	}
+}
+
 func Main() {
 	flag.Parse()
+
+	if *flScanIntervalJitter < 0 {
+		fmt.Fprintf(os.Stderr, "Bad jitter, must be >= 0 [got: %d]\n", *flScanIntervalJitter)
+		os.Exit(1)
+	}
+
 	setupLogging()
 	Log.Printf("started")
 
@@ -89,6 +140,13 @@ func Main() {
 				// continue anyway
 			}
 		}
+	}
+
+	SetCurrentMesh(spider)
+	runtime.GC()
+
+	if *flJsonLoad == "" {
+		go respiderPeriodically()
 	}
 
 	fmt.Printf("\nSPIDER: %#+v\n", spider)
