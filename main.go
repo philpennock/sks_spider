@@ -27,8 +27,7 @@ var (
 	flScanIntervalJitter = flag.Int("scan-interval-jitter", 120, "Jitter in scan interval")
 	flLogFile            = flag.String("log-file", "sksdaemon.log", "Where to write logfiles")
 	flJsonDump           = flag.String("json-dump", "", "File to dump JSON of spidered hosts to")
-	//flJsonLoad           = flag.String("json-load", "", "File to load JSON hosts from instead of spidering")
-	flJsonLoad = flag.String("json-load", "dump-hosts-2012-11-04.json", "File to load JSON hosts from instead of spidering")
+	flJsonLoad           = flag.String("json-load", "", "File to load JSON hosts from instead of spidering")
 )
 
 var serverHeadersNative = map[string]bool{
