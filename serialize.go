@@ -28,6 +28,9 @@ func (spider *Spider) DumpJSON(out io.Writer) error {
 	fmt.Fprintf(out, "{\n")
 	need_comma := false
 	for name, node := range spider.serverInfos {
+		if node == nil {
+			continue
+		}
 		if need_comma {
 			fmt.Fprintf(out, ",\n")
 		}
@@ -58,8 +61,10 @@ func LoadJSONFromFile(filename string) (*Spider, error) {
 	fakeSpider := new(Spider)
 	fakeSpider.serverInfos = make(map[string]*SksNode, len(dict))
 	for n := range dict {
-		dict[n].initialised = true
-		fakeSpider.serverInfos[n] = dict[n]
+		if dict[n] != nil {
+			dict[n].initialised = true
+			fakeSpider.serverInfos[n] = dict[n]
+		}
 	}
 	return fakeSpider, nil
 }
