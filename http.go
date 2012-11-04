@@ -60,14 +60,83 @@ func apiScanStatusz(w http.ResponseWriter, req *http.Request) {
 }
 
 func apiPeersPage(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=UTF-8")
-	fmt.Fprintf(w, "A peers page, perchance?\n")
-	//TODO: write
-	hostnames := GetCurrentHostlist()
-	for _, h := range hostnames {
-		fmt.Fprintf(w, "H: %s\n", h)
+	//TODO: restore "in progress" reporting
+	//TODO: restore this as trigger for rescan if membership file has changed?
+	//TODO: restore distance
+	//TODO: restore entries which are missing DNS but are configured
+	persisted := GetCurrentPersisted()
+	var warning string
+	if len(persisted.Sorted) == 0 {
+		warning = "Still awaiting data collection"
 	}
-	fmt.Fprintf(w, ".\n")
+
+	// This should change to distance-based, then this sort within each distance
+	display_order := persisted.Sorted
+
+	namespace := genNamespace()
+	namespace["scanning_active"] = ""
+	if warning != "" {
+		namespace["warning"] = warning
+	}
+	serveTemplates["head"].Execute(w, namespace)
+
+	for index, host := range display_order {
+		node := persisted.HostMap[host]
+		attributes := make(map[string]interface{}, 11)
+		if len(node.IpList) > 1 {
+			attributes["Rowspan"] = template.HTMLAttr(fmt.Sprintf(" rowspan=\"%d\"", len(node.IpList)))
+		} else {
+			attributes["Rowspan"] = ""
+		}
+		if index % 2 == 0 {
+			attributes["Rowclass"] = "even"
+		} else {
+			attributes["Rowclass"] = "odd"
+		}
+		attributes["Hostname"] = host
+		attributes["Sks_info"] = NodeUrl(host, node)
+		attributes["Info_page"] = fmt.Sprintf("/peer-info?peer=%s", host)
+
+		if node.AnalyzeError != nil {
+			attributes["Error"] = node.AnalyzeError.Error()
+			serveTemplates["hosterr"].Execute(w, namespace)
+			continue
+		}
+
+		if host == *flSpiderStartHost {
+			attributes["Mutual"] = "n/a"
+		} else if persisted.Graph.ExistsLink(*flSpiderStartHost, host) && persisted.Graph.ExistsLink(host, *flSpiderStartHost) {
+			attributes["Mutual"] = "Yes"
+		} else {
+			attributes["Mutual"] = "No"
+		}
+		if len(node.Aliases) > 0 {
+			attributes["Host_aliases_text"] = template.HTML(fmt.Sprintf(" <span class=\"host_aliases\">%s</span>", node.Aliases))
+		} else {
+			attributes["Host_aliases_text"] = ""
+		}
+		attributes["Geo"] = "" //TODO: implement Geo
+		attributes["Version"] = node.Version
+		attributes["Keycount"] = node.Keycount
+		attributes["Distance"] = "un" //TODO: implement distance
+		attributes["Web_server"] = node.ServerHeader
+		if node.ViaHeader != "" {
+			attributes["Via_info"] = fmt.Sprintf("✓ [%s]", node.ViaHeader)
+		} else {
+			attributes["Via_info"] = "✗"
+		}
+		for n, ip := range node.IpList {
+			attributes["Ip"] = ip
+			// TODO: reset Geo here
+			if n == 0 {
+				serveTemplates["host"].Execute(w, attributes)
+			} else {
+				serveTemplates["hostmore"].Execute(w, attributes)
+			}
+		}
+	}
+
+	serveTemplates["foot"].Execute(w, namespace)
 }
 
 func apiPeerInfoPage(w http.ResponseWriter, req *http.Request) {
@@ -264,6 +333,7 @@ func prepareTemplates() {
 {{.Scanning_active}}
   <div class="explain">
    Entries at depth 1 are direct peers.  Others are seen by spidering the peers.
+   (Functionality currently limited owing to rewrite of server)
   </div>
   <table class="sks peertable">
    <thead><tr><th>Host</th><th>Info</th><th>IP</th><th>Geo</th><th>Mutual</th><th>Version</th><th>Keys</th><th>Distance</th><th>WebServer</th><th>Proxy/via</th></tr></thead>
@@ -279,7 +349,7 @@ func prepareTemplates() {
 
 	kPAGE_TEMPLATE_HOST := `
    <tr class="peer host {{.Rowclass}}">
-    <td class="hostname"{{.Rowspan}}>{{.Html_link}}{{.Host_aliases_text}}</td>
+    <td class="hostname"{{.Rowspan}}><a href="{{.Sks_info}}">{{.Hostname}}</a>{{.Host_aliases_text}}</td>
     <td class="morelink"{{.Rowspan}}><a href="{{.Info_page}}">&dagger;</a></td>
     <td class="ipaddr">{{.Ip}}</td>
     <td class="location">{{.Geo}}</td>
@@ -305,6 +375,7 @@ func prepareTemplates() {
     <td class="ipaddr">{{.Ip}}</td><td class="location">{{.Geo}}</td>
    </tr>
 `
+
 	kPAGE_TEMPLATE_HEAD_PEER_INFO := kPAGE_TEMPLATE_BASIC_HEAD + `
   <link rev="made" href="mailto:{{.Maintainer}}">
   <title>Peer stats {{.Peername}}</title>

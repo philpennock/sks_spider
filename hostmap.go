@@ -66,7 +66,12 @@ func GeneratePersistedInformation(spider *Spider) *PersistedHostInfo {
 
 	for _, hostname := range hostnames {
 		hostMap[hostname].IpList = spider.ipsForHost[hostname]
-		hostMap[hostname].Aliases = spider.aliasesForHost[hostname]
+		hostMap[hostname].Aliases = make([]string, 0, len(spider.aliasesForHost[hostname]))
+		for _, alias := range spider.aliasesForHost[hostname] {
+			if alias != hostname {
+				hostMap[hostname].Aliases = append(hostMap[hostname].Aliases, alias)
+			}
+		}
 		HostSort(hostMap[hostname].GossipPeerList)
 		HostSort(hostMap[hostname].MailsyncPeers)
 	}

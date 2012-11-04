@@ -34,7 +34,7 @@ type SksNode struct {
 	Software       string
 	Keycount       int
 	pageContent    *htmlp.HtmlDocument
-	analyzeError   error
+	AnalyzeError   error
 
 	// And these are populated when converted into a HostMap
 	IpList  []string
@@ -190,7 +190,7 @@ func (sn *SksNode) kvdictFromTable(search string) (map[string]string, error) {
 func (sn *SksNode) Analyze() {
 	if !strings.HasPrefix(sn.Status, "200") {
 		sn.Keycount = -2
-		sn.analyzeError = fmt.Errorf("HTTP GET failure: %s", sn.Status)
+		sn.AnalyzeError = fmt.Errorf("HTTP GET failure: %s", sn.Status)
 		return
 	}
 

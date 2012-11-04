@@ -257,7 +257,7 @@ func (sResults *spiderShared) QueryHost(hostname string) {
 		defer func() {
 			if x := recover(); x != nil {
 				e := fmt.Errorf("analyze panic: %v", x)
-				node.analyzeError = e
+				node.AnalyzeError = e
 				sResults.hostResult <- &HostResult{hostname: hostname, node: node, err: e}
 				analyzePaniced = true
 			}

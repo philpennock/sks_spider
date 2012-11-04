@@ -29,6 +29,9 @@ func (hg *HostGraph) addHost(name string, info *SksNode) {
 	if _, ok := hg.outbound[name]; !ok {
 		hg.outbound[name] = btree.NewTree(btreeStringLess)
 	}
+	if _, ok := hg.inbound[name]; !ok {
+		hg.inbound[name] = btree.NewTree(btreeStringLess)
+	}
 	for _, host := range info.GossipPeerList {
 		hg.outbound[name].Insert(host)
 		if _, ok := hg.inbound[host]; !ok {
