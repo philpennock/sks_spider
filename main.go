@@ -75,12 +75,18 @@ func GetCurrentPersisted() *PersistedHostInfo {
 func GetCurrentHosts() HostMap {
 	currentHostMapLock.Lock()
 	defer currentHostMapLock.Unlock()
+	if currentHostInfo == nil {
+		return nil
+	}
 	return currentHostInfo.HostMap
 }
 
 func GetCurrentHostlist() []string {
 	currentHostMapLock.Lock()
 	defer currentHostMapLock.Unlock()
+	if currentHostInfo == nil {
+		return nil
+	}
 	return currentHostInfo.Sorted
 }
 
