@@ -5,7 +5,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"reflect" // debugDumpMethods() below
 	"strconv"
 	"strings"
 )
@@ -18,31 +17,24 @@ import (
 	xml "github.com/moovweb/gokogiri/xml"
 )
 
-// Why do XML/HTML-tree libraries come with such poor docs?  Oh right, because HTML is so barely-specified
-func debugDumpMethods(v interface{}) {
-	t := reflect.TypeOf(v)
-	max := t.NumMethod()
-	for i := 0; i < max; i += 1 {
-		m := t.Method(i)
-		fmt.Printf("M: %s\n", m.Name)
-	}
-}
-
 type SksNode struct {
-	Hostname      string
-	Port          int
-	initialised   bool
-	uriRel        string
-	uri           string
-	ServerHeader  string
-	ViaHeader     string
-	Settings      map[string]string
-	GossipPeers		map[string]string
-	MailsyncPeers []string
-	Version       string
-	Software      string
-	Keycount      int
-	pageContent   *htmlp.HtmlDocument
+	Hostname       string
+	Port           int
+	initialised    bool
+	uriRel         string
+	uri            string
+	Status         string
+	ServerHeader   string
+	ViaHeader      string
+	Settings       map[string]string
+	GossipPeers    map[string]string
+	GossipPeerList []string
+	MailsyncPeers  []string
+	Version        string
+	Software       string
+	Keycount       int
+	pageContent    *htmlp.HtmlDocument
+	analyzeError   error
 }
 
 func (sn *SksNode) Dump(out io.Writer) {
@@ -101,7 +93,8 @@ func (sn *SksNode) Fetch() error {
 	if err != nil {
 		return err
 	}
-	Log.Printf("Response status: %s", resp.Status)
+	sn.Status = resp.Status
+	Log.Printf("[%s] Response status: %s", sn.Hostname, sn.Status)
 	sn.ServerHeader = resp.Header.Get("Server")
 	sn.ViaHeader = resp.Header.Get("Via")
 	//doc, err := ehtml.Parse(resp.Body)
@@ -191,6 +184,12 @@ func (sn *SksNode) kvdictFromTable(search string) (map[string]string, error) {
 }
 
 func (sn *SksNode) Analyze() {
+	if !strings.HasPrefix(sn.Status, "200") {
+		sn.Keycount = -2
+		sn.analyzeError = fmt.Errorf("HTTP GET failure: %s", sn.Status)
+		return
+	}
+
 	if mailsync, err := sn.plainRowsOf("Outgoing Mailsync Peers"); err == nil {
 		sn.MailsyncPeers = mailsync
 	}
@@ -211,9 +210,16 @@ func (sn *SksNode) Analyze() {
 	}
 
 	if peers, err := sn.dictFromPlainRows("Gossip Peers"); err == nil {
-		for k, v := range peers {
-			if strings.ContainsAny(v, " \t") {
-				peers[k] = strings.Fields(v)[0]
+		sn.GossipPeerList = make([]string, len(peers))
+		var i = 0
+		for k := range peers {
+			sn.GossipPeerList[i] = k
+			i += 1
+		}
+
+		for _, k := range sn.GossipPeerList {
+			if strings.ContainsAny(peers[k], " \t") {
+				peers[k] = strings.Fields(peers[k])[0]
 			}
 		}
 		sn.GossipPeers = peers

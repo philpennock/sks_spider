@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 )
 
 var (
@@ -26,6 +27,13 @@ var serverHeadersNative = map[string]bool{
 	"gnuks":   true,
 }
 
+// People put dumb things in their membership files
+var blacklistedQueryHosts = []string{
+	"localhost",
+	"127.0.0.1",
+	"::1",
+}
+
 var Log *log.Logger
 
 func setupLogging() {
@@ -37,13 +45,33 @@ func setupLogging() {
 	Log = log.New(fh, "", log.LstdFlags|log.Lshortfile)
 }
 
+func statusPeriodicDump(spider *Spider, stop <-chan bool) {
+	for {
+		select {
+		case <-time.After(time.Second * 10):
+			spider.Diagnostic(os.Stdout)
+		case <-stop:
+			break
+		}
+	}
+}
+
 func Main() {
 	flag.Parse()
 	setupLogging()
 	Log.Printf("started")
 
-	node := &SksNode{Hostname: "sks.spodhuis.org"}
-	node.Fetch()
-	node.Analyze()
-	node.Dump(os.Stdout)
+	/*
+		node := &SksNode{Hostname: "sks.spodhuis.org"}
+		node.Fetch()
+		node.Analyze()
+		node.Dump(os.Stdout)
+	*/
+	spider := StartSpider()
+	spider.AddHost("sks-peer.spodhuis.org")
+	stop := make(chan bool)
+	go statusPeriodicDump(spider, stop)
+	spider.Wait()
+	stop <- true
+	fmt.Printf("\nSPIDER: %#+v\n", spider)
 }
