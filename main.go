@@ -13,6 +13,7 @@ import (
 
 var (
 	flSpiderStartHost    = flag.String("spider-start-host", "sks-peer.spodhuis.org", "Host to query to start things rolling")
+	flListen             = flag.String("listen", "localhost:8001", "port to listen on with web-server")
 	flMaintEmail         = flag.String("maint-email", "webmaster@spodhuis.org", "Email address of local maintainer")
 	flSksMembershipFile  = flag.String("sks-membership-file", "/var/sks/membership", "SKS Membership file")
 	flSksPortRecon       = flag.Int("sks-port-recon", 11370, "Default SKS recon port")
@@ -81,6 +82,14 @@ func SetCurrentMesh(spider *Spider) {
 	currentMesh = spider
 }
 
+func GetCurrentHosts() map[string]*SksNode {
+	mesh := GetCurrentMesh()
+	if mesh == nil {
+		return nil
+	}
+	return mesh.serverInfos
+}
+
 func respiderPeriodically() {
 	for {
 		var delay time.Duration = time.Duration(*flScanIntervalSecs) * time.Second
@@ -105,6 +114,18 @@ func respiderPeriodically() {
 	}
 }
 
+var httpServing sync.WaitGroup
+
+func startHttpServing() {
+	Log.Printf("Will Listen on <%s>", *flListen)
+	server := setupHttpServer(*flListen)
+	err := server.ListenAndServe()
+	if err != nil {
+		Log.Printf("ListenAndServe(%s): %s", *flListen, err)
+	}
+	httpServing.Done()
+}
+
 func Main() {
 	flag.Parse()
 
@@ -116,6 +137,9 @@ func Main() {
 	setupLogging()
 	Log.Printf("started")
 
+	httpServing.Add(1)
+	go startHttpServing()
+
 	var spider *Spider
 	var err error
 
@@ -125,6 +149,7 @@ func Main() {
 		if err != nil {
 			Log.Fatalf("Failed to load JSON from \"%s\": %s", *flJsonLoad, err)
 		}
+		Log.Printf("Loaded %d hosts from JSON", len(spider.serverInfos))
 	} else {
 		spider = StartSpider()
 		spider.AddHost(*flSpiderStartHost)
@@ -149,5 +174,5 @@ func Main() {
 		go respiderPeriodically()
 	}
 
-	fmt.Printf("\nSPIDER: %#+v\n", spider)
+	httpServing.Wait()
 }
