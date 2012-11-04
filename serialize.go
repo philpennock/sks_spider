@@ -7,12 +7,12 @@ import (
 	"os"
 )
 
-func (spider *Spider) DumpJSONToFile(filename string) error {
+func (hostmap HostMap) DumpJSONToFile(filename string) error {
 	fh, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
-	err = spider.DumpJSON(fh)
+	err = hostmap.DumpJSON(fh)
 	if err != nil {
 		fh.Close()
 		return err
@@ -21,13 +21,13 @@ func (spider *Spider) DumpJSONToFile(filename string) error {
 	return err
 }
 
-func (spider *Spider) DumpJSON(out io.Writer) error {
+func (hostmap HostMap) DumpJSON(out io.Writer) error {
 	var b []byte
 	var err error
 
 	fmt.Fprintf(out, "{\n")
 	need_comma := false
-	for name, node := range spider.serverInfos {
+	for name, node := range hostmap {
 		if node == nil {
 			continue
 		}
@@ -45,26 +45,23 @@ func (spider *Spider) DumpJSON(out io.Writer) error {
 	return nil
 }
 
-func LoadJSONFromFile(filename string) (*Spider, error) {
+func LoadJSONFromFile(filename string) (HostMap, error) {
 	fh, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 	defer fh.Close()
-	dict := make(map[string]*SksNode)
+	hostmap := make(map[string]*SksNode)
 	decoder := json.NewDecoder(fh)
-	err = decoder.Decode(&dict)
+	err = decoder.Decode(&hostmap)
 	if err != nil {
 		return nil, err
 	}
 
-	fakeSpider := new(Spider)
-	fakeSpider.serverInfos = make(map[string]*SksNode, len(dict))
-	for n := range dict {
-		if dict[n] != nil {
-			dict[n].initialised = true
-			fakeSpider.serverInfos[n] = dict[n]
+	for n := range hostmap {
+		if hostmap[n] != nil {
+			hostmap[n].initialised = true
 		}
 	}
-	return fakeSpider, nil
+	return hostmap, nil
 }

@@ -15,6 +15,7 @@ var (
 	flSpiderStartHost    = flag.String("spider-start-host", "sks-peer.spodhuis.org", "Host to query to start things rolling")
 	flListen             = flag.String("listen", "localhost:8001", "port to listen on with web-server")
 	flMaintEmail         = flag.String("maint-email", "webmaster@spodhuis.org", "Email address of local maintainer")
+	flHostname           = flag.String("hostname", "sks.spodhuis.org", "Hostname to use in generated pages")
 	flSksMembershipFile  = flag.String("sks-membership-file", "/var/sks/membership", "SKS Membership file")
 	flSksPortRecon       = flag.Int("sks-port-recon", 11370, "Default SKS recon port")
 	flSksPortHkp         = flag.Int("sks-port-hkp", 11371, "Default SKS HKP port")
@@ -34,6 +35,7 @@ var serverHeadersNative = map[string]bool{
 	"sks_www": true,
 	"gnuks":   true,
 }
+var defaultSoftware = "SKS"
 
 // People put dumb things in their membership files
 var blacklistedQueryHosts = []string{
@@ -53,41 +55,56 @@ func setupLogging() {
 	Log = log.New(fh, "", log.LstdFlags|log.Lshortfile)
 }
 
-func statusPeriodicDump(spider *Spider, stop <-chan bool) {
-	for {
-		select {
-		case <-time.After(time.Second * 10):
-			spider.Diagnostic(os.Stdout)
-		case <-stop:
-			break
-		}
-	}
+type PersistedHostInfo struct {
+	HostMap HostMap
+	Sorted  []string
+	Graph   *HostGraph
 }
 
-// TODO: switch to a straight map, drop the spider gunk
 var (
-	currentMesh     *Spider
-	currentMeshLock sync.Mutex
+	currentHostInfo    *PersistedHostInfo
+	currentHostMapLock sync.Mutex
 )
 
-func GetCurrentMesh() *Spider {
-	currentMeshLock.Lock()
-	defer currentMeshLock.Unlock()
-	return currentMesh
+func GetCurrentPersisted() *PersistedHostInfo {
+	currentHostMapLock.Lock()
+	defer currentHostMapLock.Unlock()
+	return currentHostInfo
 }
 
-func SetCurrentMesh(spider *Spider) {
-	currentMeshLock.Lock()
-	defer currentMeshLock.Unlock()
-	currentMesh = spider
+func GetCurrentHosts() HostMap {
+	currentHostMapLock.Lock()
+	defer currentHostMapLock.Unlock()
+	return currentHostInfo.HostMap
 }
 
-func GetCurrentHosts() map[string]*SksNode {
-	mesh := GetCurrentMesh()
-	if mesh == nil {
-		return nil
-	}
-	return mesh.serverInfos
+func GetCurrentHostlist() []string {
+	currentHostMapLock.Lock()
+	defer currentHostMapLock.Unlock()
+	return currentHostInfo.Sorted
+}
+
+func SetCurrentPersisted(p *PersistedHostInfo) {
+	currentHostMapLock.Lock()
+	defer currentHostMapLock.Unlock()
+	currentHostInfo = p
+}
+
+func normaliseMeshAndSet(spider *Spider, dumpJson bool) {
+	go func(s *Spider) {
+		persisted := GeneratePersistedInformation(s)
+		SetCurrentPersisted(persisted)
+		runtime.GC()
+		if dumpJson && *flJsonDump != "" {
+			Log.Printf("Saving JSON to \"%s\"", *flJsonDump)
+			err := persisted.HostMap.DumpJSONToFile(*flJsonDump)
+			if err != nil {
+				Log.Printf("Error saving JSON to \"%s\": %s", *flJsonDump, err)
+				// continue anyway
+			}
+			runtime.GC()
+		}
+	}(spider)
 }
 
 func respiderPeriodically() {
@@ -109,8 +126,8 @@ func respiderPeriodically() {
 		spider := StartSpider()
 		spider.AddHost(*flSpiderStartHost)
 		spider.Wait()
-		SetCurrentMesh(spider)
-		runtime.GC()
+		spider.Terminate()
+		normaliseMeshAndSet(spider, false)
 	}
 }
 
@@ -140,37 +157,26 @@ func Main() {
 	httpServing.Add(1)
 	go startHttpServing()
 
-	var spider *Spider
-	var err error
-
 	if *flJsonLoad != "" {
 		Log.Printf("Loading hosts from \"%s\" instead of spidering", *flJsonLoad)
-		spider, err = LoadJSONFromFile(*flJsonLoad)
+		hostmap, err := LoadJSONFromFile(*flJsonLoad)
 		if err != nil {
 			Log.Fatalf("Failed to load JSON from \"%s\": %s", *flJsonLoad, err)
 		}
-		Log.Printf("Loaded %d hosts from JSON", len(spider.serverInfos))
+		Log.Printf("Loaded %d hosts from JSON", len(hostmap))
+		hostnames := GenerateHostlistSorted(hostmap)
+		SetCurrentPersisted(&PersistedHostInfo{
+			HostMap: hostmap,
+			Sorted:  hostnames,
+			Graph:   GenerateGraph(hostnames, hostmap),
+		})
 	} else {
-		spider = StartSpider()
+		spider := StartSpider()
 		spider.AddHost(*flSpiderStartHost)
-		//stop := make(chan bool)
-		//go statusPeriodicDump(spider, stop)
 		spider.Wait()
-		//stop <- true
+		spider.Terminate()
 		Log.Printf("Spidering complete")
-		if *flJsonDump != "" {
-			err = spider.DumpJSONToFile(*flJsonDump)
-			if err != nil {
-				Log.Printf("Error saving JSON to \"%s\": %s", *flJsonDump, err)
-				// continue anyway
-			}
-		}
-	}
-
-	SetCurrentMesh(spider)
-	runtime.GC()
-
-	if *flJsonLoad == "" {
+		normaliseMeshAndSet(spider, true)
 		go respiderPeriodically()
 	}
 

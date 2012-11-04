@@ -35,6 +35,10 @@ type SksNode struct {
 	Keycount       int
 	pageContent    *htmlp.HtmlDocument
 	analyzeError   error
+
+	// And these are populated when converted into a HostMap
+	IpList  []string
+	Aliases []string
 }
 
 func (sn *SksNode) Dump(out io.Writer) {
@@ -226,4 +230,19 @@ func (sn *SksNode) Analyze() {
 	}
 
 	sn.Minimize()
+}
+
+func (sn *SksNode) Url() string {
+	if sn.uri != "" {
+		return sn.uri
+	}
+	// JSON reloaded
+	return fmt.Sprintf("http://%s:%d/pks/lookup?op=stats", sn.Hostname, sn.Port)
+}
+
+func NodeUrl(name string, sn *SksNode) string {
+	if sn != nil {
+		return sn.Url()
+	}
+	return fmt.Sprintf("http://%s:%d/pks/lookup?op=stats", name, *flSksPortHkp)
 }

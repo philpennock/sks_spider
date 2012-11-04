@@ -5,7 +5,6 @@ package sks_spider
 
 import (
 	"fmt"
-	"io"
 	"net"
 	"strings"
 	"sync"
@@ -36,6 +35,7 @@ type Spider struct {
 	batchAddHost   chan []string
 	pending        sync.WaitGroup
 	shared         *spiderShared
+	considering    map[string]bool     // already looking this host up in DNS
 	badDNS         map[string]bool     // record bogus hostnames
 	knownHosts     map[string]string   // aliases to canonical hostname from server info page
 	aliasesForHost map[string][]string // for a hostname, reverse aliases
@@ -43,10 +43,8 @@ type Spider struct {
 	ipsForHost     map[string][]string // for a given DNS lookup, the IP results
 	serverInfos    map[string]*SksNode // key should be canonical hostname
 	queryErrors    map[string]error
-
-	pendingHosts map[string]int // diagnostics when "hung"
-	pendingDump  chan io.Writer
-	doneDump     chan bool
+	pendingHosts   map[string]int // diagnostics when "hung"
+	terminate      chan bool
 }
 
 func StartSpider() *Spider {
@@ -58,6 +56,7 @@ func StartSpider() *Spider {
 	spider.shared = shared
 	spider.addHost = make(chan string, QUEUE_DEPTH)
 	spider.batchAddHost = make(chan []string, QUEUE_DEPTH)
+	spider.considering = make(map[string]bool)
 	spider.badDNS = make(map[string]bool)
 	spider.knownHosts = make(map[string]string)
 	spider.aliasesForHost = make(map[string][]string)
@@ -65,11 +64,10 @@ func StartSpider() *Spider {
 	spider.ipsForHost = make(map[string][]string)
 	spider.serverInfos = make(map[string]*SksNode)
 	spider.queryErrors = make(map[string]error)
-
 	spider.pendingHosts = make(map[string]int)
-	spider.pendingDump = make(chan io.Writer, 2)
-	spider.doneDump = make(chan bool, 2)
+	spider.terminate = make(chan bool, 1)
 
+	KillDummySpiderForDiagnosticsChannel()
 	go spiderMainLoop(spider)
 	return spider
 }
@@ -93,6 +91,11 @@ func (spider *Spider) Wait() {
 
 	// SO: should be no need to also check channel lengths and risk races.
 	spider.pending.Wait()
+}
+
+func (spider *Spider) Terminate() {
+	spider.terminate <- true
+	go DummySpiderForDiagnosticsChannel()
 }
 
 func (spider *Spider) AddHost(hostname string) {
@@ -126,51 +129,54 @@ func spiderMainLoop(spider *Spider) {
 			spider.processHostResult(hostResult)
 			spider.pendingHosts[hostResult.hostname] -= 1
 			spider.pending.Done()
-		case out := <-spider.pendingDump:
-			for h, c := range spider.pendingHosts {
-				fmt.Fprintf(out, "\tWait: %3d  %s\n", c, h)
-			}
-			spider.doneDump <- true
+		case out := <-diagnosticSpiderDump:
+			spider.diagnosticDumpInRoutine(out)
+			diagnosticSpiderDone <- true
+		case <-spider.terminate:
+			break
 		}
 	}
 }
 
 func (spider *Spider) considerHost(hostname string) {
 	skip := false
-	if _, ok := spider.badDNS[hostname]; ok {
+	if _, ok := spider.considering[hostname]; ok {
 		skip = true
-	}
-	if _, ok := spider.knownHosts[hostname]; ok {
+	} else if _, ok := BlacklistedHosts[hostname]; ok {
+		Log.Printf("Ignoring blacklisted host: \"%s\"", hostname)
 		skip = true
-	}
-	if !strings.Contains(hostname, ".") {
+	} else if _, ok := spider.badDNS[hostname]; ok {
+		skip = true
+	} else if _, ok := spider.knownHosts[hostname]; ok {
+		skip = true
+	} else if !strings.Contains(hostname, ".") {
 		Log.Printf("Ignoring unqualified hostname: %s", hostname)
 		skip = true
-	}
-	if ip := net.ParseIP(hostname); ip != nil {
+	} else if ip := net.ParseIP(hostname); ip != nil {
 		Log.Printf("Ignoring IP address: [%s]", hostname)
 		skip = true
-	}
-	if strings.Contains(hostname, "pool.") {
+	} else if strings.Contains(hostname, "pool.") {
 		Log.Printf("Ignoring pool hostname: %s", hostname)
 		skip = true
-	}
-	if strings.HasSuffix(hostname, ".local") {
+	} else if strings.HasSuffix(hostname, ".local") {
 		Log.Printf("Ignoring .local hostname: %s", hostname)
 		skip = true
-	}
-	for _, hn := range blacklistedQueryHosts {
-		if hn != hostname {
-			continue
+	} else {
+		for _, hn := range blacklistedQueryHosts {
+			if hn != hostname {
+				continue
+			}
+			Log.Printf("Ignoring blacklisted hostname: %s", hostname)
+			skip = true
 		}
-		Log.Printf("Ignoring blacklisted hostname: %s", hostname)
-		skip = true
 	}
 	if skip {
 		spider.pendingHosts[hostname] -= 1
 		spider.pending.Done()
 		return
 	}
+
+	spider.considering[hostname] = true
 
 	go func(shared *spiderShared) {
 		ipList, err := net.LookupHost(hostname)
