@@ -78,13 +78,28 @@ func apiPeersPage(w http.ResponseWriter, req *http.Request) {
 	if persisted == nil {
 		warning = "Still awaiting data collection"
 	} else {
-
-		// This should change to distance-based, then this sort within each distance
-		display_order = persisted.Sorted
+		display_order = persisted.DepthSorted
 	}
 
 	namespace := genNamespace()
-	namespace["scanning_active"] = ""
+	namespace["Scanning_active"] = ""
+
+	namespace["Mesh_count"] = len(display_order)
+	if len(display_order) > 0 {
+		pc := 0
+		for _, name := range display_order {
+			d := persisted.HostMap[name].Distance
+			if d == 1 {
+				pc += 1
+			} else if d > 1 {
+				break
+			}
+		}
+		namespace["Peer_count"] = pc
+	} else {
+		namespace["Peer_count"] = 0
+	}
+
 	if warning != "" {
 		namespace["warning"] = warning
 	}
@@ -96,7 +111,7 @@ func apiPeersPage(w http.ResponseWriter, req *http.Request) {
 		if len(node.IpList) > 1 {
 			attributes["Rowspan"] = template.HTMLAttr(fmt.Sprintf(" rowspan=\"%d\"", len(node.IpList)))
 		} else {
-			attributes["Rowspan"] = ""
+			attributes["Rowspan"] = template.HTMLAttr("")
 		}
 		if index%2 == 0 {
 			attributes["Rowclass"] = "even"
@@ -105,10 +120,10 @@ func apiPeersPage(w http.ResponseWriter, req *http.Request) {
 		}
 		attributes["Hostname"] = host
 		attributes["Sks_info"] = NodeUrl(host, node)
-		attributes["Info_page"] = fmt.Sprintf(SERVE_PREFIX + "/peer-info?peer=%s", host)
+		attributes["Info_page"] = fmt.Sprintf(SERVE_PREFIX+"/peer-info?peer=%s", host)
 
-		if node.AnalyzeError != nil {
-			attributes["Error"] = node.AnalyzeError.Error()
+		if node.AnalyzeError != "" {
+			attributes["Error"] = node.AnalyzeError
 			serveTemplates["hosterr"].Execute(w, namespace)
 			continue
 		}
@@ -128,7 +143,7 @@ func apiPeersPage(w http.ResponseWriter, req *http.Request) {
 		attributes["Geo"] = "" //TODO: implement Geo
 		attributes["Version"] = node.Version
 		attributes["Keycount"] = node.Keycount
-		attributes["Distance"] = "un" //TODO: implement distance
+		attributes["Distance"] = node.Distance
 		attributes["Web_server"] = node.ServerHeader
 		if node.ViaHeader != "" {
 			attributes["Via_info"] = fmt.Sprintf("✓ [%s]", node.ViaHeader)

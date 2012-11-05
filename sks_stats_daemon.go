@@ -4,6 +4,6 @@
 
 package main
 
-import "sks_spider"
+import "github.com/syscomet/sks_spider"
 
 func main() { sks_spider.Main() }

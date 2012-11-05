@@ -55,9 +55,10 @@ func setupLogging() {
 }
 
 type PersistedHostInfo struct {
-	HostMap HostMap
-	Sorted  []string
-	Graph   *HostGraph
+	HostMap     HostMap
+	Sorted      []string
+	DepthSorted []string
+	Graph       *HostGraph
 }
 
 var (
@@ -90,6 +91,7 @@ func GetCurrentHostlist() []string {
 }
 
 func SetCurrentPersisted(p *PersistedHostInfo) {
+	p.LogInformation()
 	currentHostMapLock.Lock()
 	defer currentHostMapLock.Unlock()
 	currentHostInfo = p
@@ -129,7 +131,7 @@ func respiderPeriodically() {
 		time.Sleep(delay)
 		Log.Printf("Awoken!  Time to spider.")
 		spider := StartSpider()
-		spider.AddHost(*flSpiderStartHost)
+		spider.AddHost(*flSpiderStartHost, 0)
 		spider.Wait()
 		spider.Terminate()
 		normaliseMeshAndSet(spider, false)
@@ -171,13 +173,14 @@ func Main() {
 		Log.Printf("Loaded %d hosts from JSON", len(hostmap))
 		hostnames := GenerateHostlistSorted(hostmap)
 		SetCurrentPersisted(&PersistedHostInfo{
-			HostMap: hostmap,
-			Sorted:  hostnames,
-			Graph:   GenerateGraph(hostnames, hostmap),
+			HostMap:     hostmap,
+			Sorted:      hostnames,
+			DepthSorted: GenerateDepthSorted(hostmap),
+			Graph:       GenerateGraph(hostnames, hostmap),
 		})
 	} else {
 		spider := StartSpider()
-		spider.AddHost(*flSpiderStartHost)
+		spider.AddHost(*flSpiderStartHost, 0)
 		spider.Wait()
 		spider.Terminate()
 		Log.Printf("Spidering complete")

@@ -65,6 +65,15 @@ func (hg *HostGraph) ExistsLink(from, to string) bool {
 	return hg.inbound[to].Contains(from)
 }
 
+func (hg *HostGraph) Len() int {
+	l1 := len(hg.outbound)
+	l2 := len(hg.inbound)
+	if l1 >= l2 {
+		return l1
+	}
+	return l2
+}
+
 func GenerateGraph(names []string, sksnodes HostMap) *HostGraph {
 	graph := NewHostGraph(len(names))
 	for _, hn := range names {

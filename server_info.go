@@ -18,6 +18,7 @@ import (
 )
 
 type SksNode struct {
+	// Be sure that types of Exported fields are loadable from JSON!
 	Hostname       string
 	Port           int
 	initialised    bool
@@ -34,11 +35,13 @@ type SksNode struct {
 	Software       string
 	Keycount       int
 	pageContent    *htmlp.HtmlDocument
-	AnalyzeError   error
+	analyzeError   error
 
 	// And these are populated when converted into a HostMap
-	IpList  []string
-	Aliases []string
+	AnalyzeError string
+	IpList       []string
+	Aliases      []string
+	Distance     int
 }
 
 func (sn *SksNode) Dump(out io.Writer) {
@@ -71,6 +74,10 @@ func (sn *SksNode) Normalize() bool {
 	}
 	if sn.Port == 0 {
 		sn.Port = *flSksPortHkp
+	}
+	if sn.Distance == 0 {
+		// Will be overriden from the spider later
+		sn.Distance = -1
 	}
 	sn.uriRel = "/pks/lookup?op=stats"
 	sn.uri = fmt.Sprintf("http://%s:%d%s", sn.Hostname, sn.Port, sn.uriRel)
@@ -190,7 +197,7 @@ func (sn *SksNode) kvdictFromTable(search string) (map[string]string, error) {
 func (sn *SksNode) Analyze() {
 	if !strings.HasPrefix(sn.Status, "200") {
 		sn.Keycount = -2
-		sn.AnalyzeError = fmt.Errorf("HTTP GET failure: %s", sn.Status)
+		sn.analyzeError = fmt.Errorf("HTTP GET failure: %s", sn.Status)
 		return
 	}
 

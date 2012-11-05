@@ -18,6 +18,12 @@ type DnsResult struct {
 	err      error
 }
 
+type HostsRequest struct {
+	hostnames []string
+	distance  int
+	origin    string
+}
+
 type HostResult struct {
 	hostname string
 	node     *SksNode
@@ -31,8 +37,7 @@ type spiderShared struct {
 
 // This persists for the length of one data gathering run.
 type Spider struct {
-	addHost        chan string
-	batchAddHost   chan []string
+	batchAddHost   chan *HostsRequest
 	pending        sync.WaitGroup
 	shared         *spiderShared
 	considering    map[string]bool     // already looking this host up in DNS
@@ -44,6 +49,7 @@ type Spider struct {
 	serverInfos    map[string]*SksNode // key should be canonical hostname
 	queryErrors    map[string]error
 	pendingHosts   map[string]int // diagnostics when "hung"
+	distances      map[string]int
 	terminate      chan bool
 }
 
@@ -54,8 +60,7 @@ func StartSpider() *Spider {
 
 	spider := new(Spider)
 	spider.shared = shared
-	spider.addHost = make(chan string, QUEUE_DEPTH)
-	spider.batchAddHost = make(chan []string, QUEUE_DEPTH)
+	spider.batchAddHost = make(chan *HostsRequest, QUEUE_DEPTH)
 	spider.considering = make(map[string]bool)
 	spider.badDNS = make(map[string]bool)
 	spider.knownHosts = make(map[string]string)
@@ -65,6 +70,7 @@ func StartSpider() *Spider {
 	spider.serverInfos = make(map[string]*SksNode)
 	spider.queryErrors = make(map[string]error)
 	spider.pendingHosts = make(map[string]int)
+	spider.distances = make(map[string]int)
 	spider.terminate = make(chan bool, 1)
 
 	KillDummySpiderForDiagnosticsChannel()
@@ -98,28 +104,26 @@ func (spider *Spider) Terminate() {
 	go DummySpiderForDiagnosticsChannel()
 }
 
-func (spider *Spider) AddHost(hostname string) {
+func (spider *Spider) AddHost(hostname string, distance int) {
 	spider.pending.Add(1)
 	spider.pendingHosts[hostname] += 1
-	spider.addHost <- hostname
+	spider.batchAddHost <- &HostsRequest{hostnames: []string{hostname}, distance: distance}
 }
 
-func (spider *Spider) BatchAddHost(hostlist []string) {
+func (spider *Spider) BatchAddHost(origin string, hostlist []string) {
 	spider.pending.Add(len(hostlist))
 	for _, h := range hostlist {
 		spider.pendingHosts[h] += 1
 	}
-	spider.batchAddHost <- hostlist
+	spider.batchAddHost <- &HostsRequest{hostnames: hostlist, origin: origin}
 }
 
 func spiderMainLoop(spider *Spider) {
 	for {
 		select {
-		case hostname := <-spider.addHost:
-			spider.considerHost(hostname)
-		case hostlist := <-spider.batchAddHost:
-			for _, hostname := range hostlist {
-				spider.considerHost(hostname)
+		case hostreq := <-spider.batchAddHost:
+			for _, hostname := range hostreq.hostnames {
+				spider.considerHost(hostname, hostreq)
 			}
 		case dnsResult := <-spider.shared.dnsResult:
 			spider.processDnsResult(dnsResult)
@@ -138,8 +142,23 @@ func spiderMainLoop(spider *Spider) {
 	}
 }
 
-func (spider *Spider) considerHost(hostname string) {
+func (spider *Spider) considerHost(hostname string, request *HostsRequest) {
 	skip := false
+	distance := -1
+
+	if request.origin != "" {
+		if d, ok := spider.distances[request.origin]; ok {
+			distance = d + 1
+		}
+	}
+	if distance < 0 {
+		distance = request.distance
+	}
+	if olddistance, ok := spider.distances[hostname]; ok && olddistance > distance {
+		Log.Printf("Promoting host to be nearer; \"%s\" was %d, now %d", hostname, olddistance, distance)
+		spider.distances[hostname] = distance
+	}
+
 	if _, ok := spider.considering[hostname]; ok {
 		skip = true
 	} else if _, ok := BlacklistedHosts[hostname]; ok {
@@ -149,11 +168,11 @@ func (spider *Spider) considerHost(hostname string) {
 		skip = true
 	} else if _, ok := spider.knownHosts[hostname]; ok {
 		skip = true
-	} else if !strings.Contains(hostname, ".") {
-		Log.Printf("Ignoring unqualified hostname: %s", hostname)
-		skip = true
 	} else if ip := net.ParseIP(hostname); ip != nil {
 		Log.Printf("Ignoring IP address: [%s]", hostname)
+		skip = true
+	} else if !strings.Contains(hostname, ".") {
+		Log.Printf("Ignoring unqualified hostname: %s", hostname)
 		skip = true
 	} else if strings.Contains(hostname, "pool.") {
 		Log.Printf("Ignoring pool hostname: %s", hostname)
@@ -177,6 +196,7 @@ func (spider *Spider) considerHost(hostname string) {
 	}
 
 	spider.considering[hostname] = true
+	spider.distances[hostname] = distance
 
 	go func(shared *spiderShared) {
 		ipList, err := net.LookupHost(hostname)
@@ -257,7 +277,7 @@ func (sResults *spiderShared) QueryHost(hostname string) {
 		defer func() {
 			if x := recover(); x != nil {
 				e := fmt.Errorf("analyze panic: %v", x)
-				node.AnalyzeError = e
+				node.analyzeError = e
 				sResults.hostResult <- &HostResult{hostname: hostname, node: node, err: e}
 				analyzePaniced = true
 			}
@@ -309,6 +329,9 @@ func (spider *Spider) processHostResult(hr *HostResult) {
 			spider.ipsForHost[canonical] = flattenIPs(spider.ipsForHost[canonical], spider.ipsForHost[hostname])
 		}
 		delete(spider.aliasesForHost, hostname)
+		if old, ok3 := spider.distances[canonical]; !ok3 || old < spider.distances[hostname] {
+			spider.distances[canonical] = spider.distances[hostname]
+		}
 	}
 
 	own_nodename, ok := node.Settings["Nodename"]
@@ -319,6 +342,6 @@ func (spider *Spider) processHostResult(hr *HostResult) {
 	}
 
 	spider.serverInfos[canonical] = node
-	spider.BatchAddHost(node.GossipPeerList)
+	spider.BatchAddHost(canonical, node.GossipPeerList)
 	return
 }

@@ -28,7 +28,8 @@ supported.
 The original version was written in Python as a WSGI and grew organically.
 This version is written in Golang (the Go programming language) and makes
 fairly decent use of Go's concurrency features.  It uses well under a fifth
-the total RAM, something similarly smaller in RSS, uses less CPU (when
+the total RAM, something similarly smaller in RSS, uses less CPU (when busy,
+10% of an ancient CPU instead of all of one; when
 "idle" is not sitting at the top of top_(1)_ output, using fractionally more
 CPU than a real idle process) and is _significantly_ more responsive.  These
 improvements are in part because of Golang and in very large part because of
@@ -42,12 +43,14 @@ features should not significantly impact resource consumption.
 To-Do
 -----
 
-* Distance from seed server, sort results ranked by distance and _then_ by
-  hostname
 * Geo-coding of IPs (restores the other DNS zones)
 * Preserve more errors for the front-page?
 * `.dot` file generation
 * Look over the admin interfaces, probably want `/rescanz` back
+* If add rescanz, need locking around spider starting; can preserve spider
+  handle while at it, and make it possible to, eg kill an existing scan using
+  a random nonce to authenticate, where the nonce has to be retrieved from
+  the logfile.
 
 Building
 --------

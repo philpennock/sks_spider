@@ -74,12 +74,24 @@ func GeneratePersistedInformation(spider *Spider) *PersistedHostInfo {
 		}
 		HostSort(hostMap[hostname].GossipPeerList)
 		HostSort(hostMap[hostname].MailsyncPeers)
+		hostMap[hostname].Distance = spider.distances[hostname]
+		// To let JSON Marshal/Unmarshal work:
+		if hostMap[hostname].analyzeError != nil {
+			hostMap[hostname].AnalyzeError = hostMap[hostname].analyzeError.Error()
+			hostMap[hostname].analyzeError = nil
+		}
 	}
 
 	// TODO: spawn go-routines, wait, to do Geo resolution
 	return &PersistedHostInfo{
-		HostMap: hostMap,
-		Sorted:  hostnames,
-		Graph:   GenerateGraph(hostnames, hostMap),
+		HostMap:     hostMap,
+		Sorted:      hostnames,
+		DepthSorted: GenerateDepthSorted(hostMap),
+		Graph:       GenerateGraph(hostnames, hostMap),
 	}
+}
+
+func (p *PersistedHostInfo) LogInformation() {
+	Log.Printf("Persisting: sizes HostMap=%d Sorted=%d DepthSorted=%d Graph=%d",
+		len(p.HostMap), len(p.Sorted), len(p.DepthSorted), p.Graph.Len())
 }
