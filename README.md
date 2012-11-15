@@ -119,6 +119,11 @@ In fact, you don't even need the X-Real-IP pass-through, but set it up now
 and it'll be easier to deal with a future change which logs the origin IP.
 
 
+License
+-------
+
+Apache 2.0.
+
 
 That's about it.
 -Phil
