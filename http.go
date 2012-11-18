@@ -144,7 +144,14 @@ func apiPeersPage(w http.ResponseWriter, req *http.Request) {
 			continue
 		}
 
-		attributes["Mutual"] = persisted.Graph.LabelMutualWithBase(host)
+		switch node.Distance {
+		case 0:
+			attributes["Mutual"] = "n/a"
+		case 1:
+			attributes["Mutual"] = persisted.Graph.LabelMutualWithBase(host)
+		default:
+			attributes["Mutual"] = "-"
+		}
 		if len(node.Aliases) > 0 {
 			attributes["Host_aliases_text"] = template.HTML(fmt.Sprintf(" <span class=\"host_aliases\">%s</span>", node.Aliases))
 		} else {
