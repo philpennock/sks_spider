@@ -77,6 +77,7 @@ func setupLogging() {
 
 type PersistedHostInfo struct {
 	HostMap      HostMap
+	AliasMap     AliasMap
 	IPCountryMap IPCountryMap
 	Sorted       []string
 	DepthSorted  []string
@@ -195,12 +196,14 @@ func Main() {
 		Log.Printf("Loaded %d hosts from JSON", len(hostmap))
 		hostnames := GenerateHostlistSorted(hostmap)
 		countryMap := GetFreshCountryForHostmap(hostmap)
+		aliasMap := GetAliasMapForHostmap(hostmap)
 		SetCurrentPersisted(&PersistedHostInfo{
 			HostMap:      hostmap,
+			AliasMap:     aliasMap,
 			IPCountryMap: countryMap,
 			Sorted:       hostnames,
 			DepthSorted:  GenerateDepthSorted(hostmap),
-			Graph:        GenerateGraph(hostnames, hostmap),
+			Graph:        GenerateGraph(hostnames, hostmap, aliasMap),
 		})
 	} else {
 		spider := StartSpider()

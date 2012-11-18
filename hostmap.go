@@ -22,6 +22,7 @@ import (
 )
 
 type HostMap map[string]*SksNode
+type AliasMap map[string]string
 type IPCountryMap map[string]string
 
 type sortingHost struct {
@@ -70,8 +71,20 @@ func GenerateHostlistSorted(hostMap HostMap) []string {
 	return hostnames
 }
 
+func GetAliasMapForHostmap(hostMap HostMap) AliasMap {
+	aliasMap := make(AliasMap, len(hostMap)*2)
+	for hostname, node := range hostMap {
+		aliasMap[hostname] = hostname
+		for _, alias := range node.Aliases {
+			aliasMap[alias] = hostname
+		}
+	}
+	return aliasMap
+}
+
 func GeneratePersistedInformation(spider *Spider) *PersistedHostInfo {
 	hostMap := make(HostMap, len(spider.serverInfos))
+	aliasMap := make(AliasMap, len(spider.serverInfos)*2)
 	for hn := range spider.serverInfos {
 		if spider.serverInfos[hn] == nil {
 			continue
@@ -82,9 +95,11 @@ func GeneratePersistedInformation(spider *Spider) *PersistedHostInfo {
 	hostnames := GenerateHostlistSorted(hostMap)
 
 	for _, hostname := range hostnames {
+		aliasMap[hostname] = hostname
 		hostMap[hostname].IpList = spider.ipsForHost[hostname]
 		hostMap[hostname].Aliases = make([]string, 0, len(spider.aliasesForHost[hostname]))
 		for _, alias := range spider.aliasesForHost[hostname] {
+			aliasMap[alias] = hostname
 			if alias != hostname {
 				hostMap[hostname].Aliases = append(hostMap[hostname].Aliases, alias)
 			}
@@ -109,10 +124,11 @@ func GeneratePersistedInformation(spider *Spider) *PersistedHostInfo {
 	// TODO: spawn go-routines, wait, to do Geo resolution
 	return &PersistedHostInfo{
 		HostMap:      hostMap,
+		AliasMap:     aliasMap,
 		IPCountryMap: countryMap,
 		Sorted:       hostnames,
 		DepthSorted:  GenerateDepthSorted(hostMap),
-		Graph:        GenerateGraph(hostnames, hostMap),
+		Graph:        GenerateGraph(hostnames, hostMap, aliasMap),
 	}
 }
 
@@ -140,6 +156,7 @@ func GetFreshCountryForHostmap(hostMap HostMap) IPCountryMap {
 }
 
 func (p *PersistedHostInfo) LogInformation() {
-	Log.Printf("Persisting: sizes HostMap=%d IPCountryMap=%d Sorted=%d DepthSorted=%d Graph=%d",
-		len(p.HostMap), len(p.IPCountryMap), len(p.Sorted), len(p.DepthSorted), p.Graph.Len())
+	Log.Printf("Persisting: sizes HostMap=%d AliasMap=%d IPCountryMap=%d Sorted=%d DepthSorted=%d Graph=%d",
+		len(p.HostMap), len(p.AliasMap), len(p.IPCountryMap),
+		len(p.Sorted), len(p.DepthSorted), p.Graph.Len())
 }

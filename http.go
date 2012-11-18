@@ -144,13 +144,7 @@ func apiPeersPage(w http.ResponseWriter, req *http.Request) {
 			continue
 		}
 
-		if host == *flSpiderStartHost {
-			attributes["Mutual"] = "n/a"
-		} else if persisted.Graph.ExistsLink(*flSpiderStartHost, host) && persisted.Graph.ExistsLink(host, *flSpiderStartHost) {
-			attributes["Mutual"] = "Yes"
-		} else {
-			attributes["Mutual"] = "No"
-		}
+		attributes["Mutual"] = persisted.Graph.LabelMutualWithBase(host)
 		if len(node.Aliases) > 0 {
 			attributes["Host_aliases_text"] = template.HTML(fmt.Sprintf(" <span class=\"host_aliases\">%s</span>", node.Aliases))
 		} else {
@@ -225,9 +219,7 @@ func apiPeerInfoPage(w http.ResponseWriter, req *http.Request) {
 	namespace["Via_info"] = node.ViaHeader
 	namespace["Peer_statsurl"] = node.Url()
 
-	peer_list := make([]string, len(node.GossipPeerList))
-	copy(peer_list, node.GossipPeerList)
-	HostSort(peer_list)
+	peer_list := persisted.Graph.AllPeersOf(node.Hostname)
 
 	serveTemplates["pi_head"].Execute(w, namespace)
 	serveTemplates["pi_main"].Execute(w, namespace)
@@ -241,7 +233,7 @@ func apiPeerInfoPage(w http.ResponseWriter, req *http.Request) {
 		in := persisted.Graph.ExistsLink(other, peer)
 		common := out && in
 		attributes["Out"] = out
-		if _, ok := persisted.HostMap[other]; !ok {
+		if _, ok := persisted.AliasMap[other]; !ok {
 			// peer not successfully polled
 			attributes["In"] = "?"
 			attributes["Common"] = "?"

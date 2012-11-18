@@ -17,6 +17,10 @@
 package sks_spider
 
 import (
+	"strings"
+)
+
+import (
 	btree "github.com/runningwild/go-btree"
 	// gotgo
 	// in-dir: gotgo -o btree.go btree.got string
@@ -27,6 +31,7 @@ import (
 
 type HostGraph struct {
 	maxLen   int
+	aliases  AliasMap
 	outbound map[string]btree.SortedSet
 	inbound  map[string]btree.SortedSet
 }
@@ -35,10 +40,10 @@ func btreeStringLess(a, b string) bool {
 	return a < b
 }
 
-func NewHostGraph(count int) *HostGraph {
+func NewHostGraph(count int, aliasMap AliasMap) *HostGraph {
 	outbound := make(map[string]btree.SortedSet, count)
 	inbound := make(map[string]btree.SortedSet, count)
-	return &HostGraph{maxLen: count, outbound: outbound, inbound: inbound}
+	return &HostGraph{maxLen: count, aliases: aliasMap, outbound: outbound, inbound: inbound}
 }
 
 func (hg *HostGraph) addHost(name string, info *SksNode) {
@@ -48,12 +53,24 @@ func (hg *HostGraph) addHost(name string, info *SksNode) {
 	if _, ok := hg.inbound[name]; !ok {
 		hg.inbound[name] = btree.NewTree(btreeStringLess)
 	}
-	for _, host := range info.GossipPeerList {
-		hg.outbound[name].Insert(host)
-		if _, ok := hg.inbound[host]; !ok {
-			hg.inbound[host] = btree.NewTree(btreeStringLess)
+	for _, peerAsGiven := range info.GossipPeerList {
+		var peerCanonical string
+		if canon, ok := hg.aliases[strings.ToLower(peerAsGiven)]; ok {
+			peerCanonical = canon
+		} else {
+			lowered := strings.ToLower(peerAsGiven)
+			peerCanonical = lowered
+			// peer is down, have no node, but still have outbound link:
+			hg.aliases[lowered] = lowered
+			if peerAsGiven != lowered {
+				hg.aliases[peerAsGiven] = lowered
+			}
 		}
-		hg.inbound[host].Insert(name)
+		hg.outbound[name].Insert(peerCanonical)
+		if _, ok := hg.inbound[peerCanonical]; !ok {
+			hg.inbound[peerCanonical] = btree.NewTree(btreeStringLess)
+		}
+		hg.inbound[peerCanonical].Insert(name)
 	}
 }
 
@@ -70,15 +87,42 @@ func (hg *HostGraph) fixOutbounds() {
 }
 
 func (hg *HostGraph) Outbound(name string) <-chan string {
-	return hg.outbound[name].Data()
+	return hg.outbound[strings.ToLower(name)].Data()
 }
 
 func (hg *HostGraph) Inbound(name string) <-chan string {
-	return hg.inbound[name].Data()
+	return hg.inbound[strings.ToLower(name)].Data()
 }
 
 func (hg *HostGraph) ExistsLink(from, to string) bool {
-	return hg.inbound[to].Contains(from)
+	realFrom, okFrom := hg.aliases[strings.ToLower(from)]
+	realTo, okTo := hg.aliases[strings.ToLower(to)]
+	if !okFrom || !okTo {
+		Log.Printf("Bad link query, internal bug: %s %v -> %s %v", from, okFrom, to, okTo)
+		return false
+	}
+	return hg.inbound[realTo].Contains(realFrom)
+}
+
+func (hg *HostGraph) AllPeersOf(name string) []string {
+	canonName, ok := hg.aliases[strings.ToLower(name)]
+	if !ok {
+		return []string{}
+	}
+	allPeers := btree.NewTree(btreeStringLess)
+	for out := range hg.outbound[canonName].Data() {
+		allPeers.Insert(out)
+	}
+	for in := range hg.inbound[canonName].Data() {
+		allPeers.Insert(in)
+	}
+	sortedList := make([]string, allPeers.Len())
+	i := 0
+	for peer := range allPeers.Data() {
+		sortedList[i] = peer
+		i++
+	}
+	return sortedList
 }
 
 func (hg *HostGraph) Len() int {
@@ -90,11 +134,32 @@ func (hg *HostGraph) Len() int {
 	return l2
 }
 
-func GenerateGraph(names []string, sksnodes HostMap) *HostGraph {
-	graph := NewHostGraph(len(names))
+func GenerateGraph(names []string, sksnodes HostMap, aliases AliasMap) *HostGraph {
+	graph := NewHostGraph(len(names), aliases)
 	for _, hn := range names {
-		graph.addHost(hn, sksnodes[hn])
+		hnLower := strings.ToLower(hn)
+		graph.addHost(hnLower, sksnodes[hn])
 	}
 	graph.fixOutbounds()
 	return graph
+}
+
+func (hg *HostGraph) LabelMutualWithBase(name string) string {
+	baseCanon, ok := hg.aliases[*flSpiderStartHost]
+	if !ok {
+		panic("no known alias for start host")
+	}
+	canon, ok := hg.aliases[name]
+	switch {
+	case !ok:
+		// can't be mutual, we don't even know the name
+		return "No"
+	case canon == baseCanon:
+		return "n/a"
+	case hg.ExistsLink(canon, baseCanon) && hg.ExistsLink(baseCanon, canon):
+		return "Yes"
+	default:
+		return "No"
+	}
+	panic("not reached")
 }
