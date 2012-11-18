@@ -42,6 +42,7 @@ var (
 	flScanIntervalSecs   = flag.Int("scan-interval", 3600*8, "How often to trigger a scan")
 	flScanIntervalJitter = flag.Int("scan-interval-jitter", 120, "Jitter in scan interval")
 	flLogFile            = flag.String("log-file", "sksdaemon.log", "Where to write logfiles")
+	flLogStdout          = flag.Bool("log-stdout", false, "Log to stdout instead of log-file")
 	flJsonDump           = flag.String("json-dump", "", "File to dump JSON of spidered hosts to")
 	flJsonLoad           = flag.String("json-load", "", "File to load JSON hosts from instead of spidering")
 )
@@ -62,6 +63,10 @@ var blacklistedQueryHosts = []string{
 var Log *log.Logger
 
 func setupLogging() {
+	if *flLogStdout {
+		Log = log.New(os.Stdout, "", log.LstdFlags|log.Lshortfile)
+		return
+	}
 	fh, err := os.OpenFile(*flLogFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to open logfile \"%s\": %s\n", *flLogFile, err)
@@ -71,10 +76,11 @@ func setupLogging() {
 }
 
 type PersistedHostInfo struct {
-	HostMap     HostMap
-	Sorted      []string
-	DepthSorted []string
-	Graph       *HostGraph
+	HostMap      HostMap
+	IPCountryMap IPCountryMap
+	Sorted       []string
+	DepthSorted  []string
+	Graph        *HostGraph
 }
 
 var (
@@ -188,11 +194,13 @@ func Main() {
 		}
 		Log.Printf("Loaded %d hosts from JSON", len(hostmap))
 		hostnames := GenerateHostlistSorted(hostmap)
+		countryMap := GetFreshCountryForHostmap(hostmap)
 		SetCurrentPersisted(&PersistedHostInfo{
-			HostMap:     hostmap,
-			Sorted:      hostnames,
-			DepthSorted: GenerateDepthSorted(hostmap),
-			Graph:       GenerateGraph(hostnames, hostmap),
+			HostMap:      hostmap,
+			IPCountryMap: countryMap,
+			Sorted:       hostnames,
+			DepthSorted:  GenerateDepthSorted(hostmap),
+			Graph:        GenerateGraph(hostnames, hostmap),
 		})
 	} else {
 		spider := StartSpider()

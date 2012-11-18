@@ -22,6 +22,7 @@ import (
 )
 
 type HostMap map[string]*SksNode
+type IPCountryMap map[string]string
 
 type sortingHost struct {
 	reversed string
@@ -98,16 +99,47 @@ func GeneratePersistedInformation(spider *Spider) *PersistedHostInfo {
 		}
 	}
 
+	countryMap := make(IPCountryMap, len(spider.countriesForIPs))
+	for ip, country := range spider.countriesForIPs {
+		if country != "" {
+			countryMap[ip] = country
+		}
+	}
+
 	// TODO: spawn go-routines, wait, to do Geo resolution
 	return &PersistedHostInfo{
-		HostMap:     hostMap,
-		Sorted:      hostnames,
-		DepthSorted: GenerateDepthSorted(hostMap),
-		Graph:       GenerateGraph(hostnames, hostMap),
+		HostMap:      hostMap,
+		IPCountryMap: countryMap,
+		Sorted:       hostnames,
+		DepthSorted:  GenerateDepthSorted(hostMap),
+		Graph:        GenerateGraph(hostnames, hostMap),
 	}
 }
 
+func GetFreshCountryForHostmap(hostMap HostMap) IPCountryMap {
+	Log.Print("Quering DNS (sequentially) for fresh country map")
+	countryMap := make(IPCountryMap, len(hostMap))
+	triedIPs := make(map[string]bool, len(hostMap)*3)
+	for _, node := range hostMap {
+		if node.IpList == nil {
+			continue
+		}
+		for _, ip := range node.IpList {
+			if _, seen := triedIPs[ip]; seen {
+				continue
+			}
+			triedIPs[ip] = true
+			country, err := CountryForIPString(ip)
+			if err == nil {
+				countryMap[ip] = country
+			}
+		}
+	}
+	Log.Printf("Got countries for %d (of %d) IPs", len(countryMap), len(triedIPs))
+	return countryMap
+}
+
 func (p *PersistedHostInfo) LogInformation() {
-	Log.Printf("Persisting: sizes HostMap=%d Sorted=%d DepthSorted=%d Graph=%d",
-		len(p.HostMap), len(p.Sorted), len(p.DepthSorted), p.Graph.Len())
+	Log.Printf("Persisting: sizes HostMap=%d IPCountryMap=%d Sorted=%d DepthSorted=%d Graph=%d",
+		len(p.HostMap), len(p.IPCountryMap), len(p.Sorted), len(p.DepthSorted), p.Graph.Len())
 }

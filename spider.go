@@ -46,33 +46,43 @@ type HostResult struct {
 	err      error
 }
 
+type CountryResult struct {
+	ip      string
+	country string
+	err     error
+}
+
 type spiderShared struct {
-	dnsResult  chan *DnsResult
-	hostResult chan *HostResult
+	dnsResult     chan *DnsResult
+	hostResult    chan *HostResult
+	countryResult chan *CountryResult
 }
 
 // This persists for the length of one data gathering run.
 type Spider struct {
-	batchAddHost   chan *HostsRequest
-	pending        sync.WaitGroup
-	shared         *spiderShared
-	considering    map[string]bool     // already looking this host up in DNS
-	badDNS         map[string]bool     // record bogus hostnames
-	knownHosts     map[string]string   // aliases to canonical hostname from server info page
-	aliasesForHost map[string][]string // for a hostname, reverse aliases
-	knownIPs       map[string]string   // IPs to same canonical hostname
-	ipsForHost     map[string][]string // for a given DNS lookup, the IP results
-	serverInfos    map[string]*SksNode // key should be canonical hostname
-	queryErrors    map[string]error
-	pendingHosts   map[string]int // diagnostics when "hung"
-	distances      map[string]int
-	terminate      chan bool
+	batchAddHost     chan *HostsRequest
+	pending          sync.WaitGroup
+	shared           *spiderShared
+	considering      map[string]bool     // already looking this host up in DNS
+	badDNS           map[string]bool     // record bogus hostnames
+	knownHosts       map[string]string   // aliases to canonical hostname from server info page
+	aliasesForHost   map[string][]string // for a hostname, reverse aliases
+	knownIPs         map[string]string   // IPs to same canonical hostname
+	ipsForHost       map[string][]string // for a given DNS lookup, the IP results
+	serverInfos      map[string]*SksNode // key should be canonical hostname
+	queryErrors      map[string]error
+	pendingHosts     map[string]int // diagnostics when "hung"
+	pendingCountries map[string]int
+	distances        map[string]int
+	countriesForIPs  map[string]string
+	terminate        chan bool
 }
 
 func StartSpider() *Spider {
 	shared := new(spiderShared)
 	shared.dnsResult = make(chan *DnsResult, QUEUE_DEPTH)
 	shared.hostResult = make(chan *HostResult, QUEUE_DEPTH)
+	shared.countryResult = make(chan *CountryResult, QUEUE_DEPTH)
 
 	spider := new(Spider)
 	spider.shared = shared
@@ -86,7 +96,9 @@ func StartSpider() *Spider {
 	spider.serverInfos = make(map[string]*SksNode)
 	spider.queryErrors = make(map[string]error)
 	spider.pendingHosts = make(map[string]int)
+	spider.pendingCountries = make(map[string]int)
 	spider.distances = make(map[string]int)
+	spider.countriesForIPs = make(map[string]string)
 	spider.terminate = make(chan bool, 1)
 
 	KillDummySpiderForDiagnosticsChannel()
@@ -148,6 +160,10 @@ func spiderMainLoop(spider *Spider) {
 		case hostResult := <-spider.shared.hostResult:
 			spider.processHostResult(hostResult)
 			spider.pendingHosts[hostResult.hostname] -= 1
+			spider.pending.Done()
+		case countryResult := <-spider.shared.countryResult:
+			spider.processCountryResult(countryResult)
+			spider.pendingCountries[countryResult.ip] -= 1
 			spider.pending.Done()
 		case out := <-diagnosticSpiderDump:
 			spider.diagnosticDumpInRoutine(out)
@@ -274,6 +290,12 @@ func (spider *Spider) processDnsResult(dns *DnsResult) {
 	spider.ipsForHost[hostname] = ipList
 	for _, ip := range ipList {
 		spider.knownIPs[ip] = hostname
+		if _, ok2 := spider.countriesForIPs[ip]; !ok2 {
+			spider.countriesForIPs[ip] = ""
+			spider.pendingCountries[ip] += 1
+			spider.pending.Add(1)
+			go spider.shared.QueryCountryForIP(ip)
+		}
 	}
 	spider.serverInfos[hostname] = nil
 	spider.pending.Add(1)
@@ -360,4 +382,15 @@ func (spider *Spider) processHostResult(hr *HostResult) {
 	spider.serverInfos[canonical] = node
 	spider.BatchAddHost(canonical, node.GossipPeerList)
 	return
+}
+
+func (sResults *spiderShared) QueryCountryForIP(ipstr string) {
+	country, err := CountryForIPString(ipstr)
+	sResults.countryResult <- &CountryResult{ip: ipstr, country: country, err: err}
+}
+
+func (spider *Spider) processCountryResult(cr *CountryResult) {
+	if cr.err == nil {
+		spider.countriesForIPs[cr.ip] = cr.country
+	}
 }

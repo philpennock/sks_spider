@@ -156,7 +156,6 @@ func apiPeersPage(w http.ResponseWriter, req *http.Request) {
 		} else {
 			attributes["Host_aliases_text"] = ""
 		}
-		attributes["Geo"] = "" //TODO: implement Geo
 		attributes["Version"] = node.Version
 		attributes["Keycount"] = node.Keycount
 		attributes["Distance"] = node.Distance
@@ -168,7 +167,7 @@ func apiPeersPage(w http.ResponseWriter, req *http.Request) {
 		}
 		for n, ip := range node.IpList {
 			attributes["Ip"] = ip
-			// TODO: reset Geo here
+			attributes["Geo"] = persisted.IPCountryMap[ip]
 			if n == 0 {
 				serveTemplates["host"].Execute(w, attributes)
 			} else {

@@ -43,7 +43,6 @@ features should not significantly impact resource consumption.
 To-Do
 -----
 
-* Geo-coding of IPs (restores the other DNS zones)
 * Preserve more errors for the front-page?
 * `.dot` file generation
 * Look over the admin interfaces, probably want `/rescanz` back
