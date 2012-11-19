@@ -40,6 +40,11 @@ const (
 	kBUCKET_SIZE         = 3000
 )
 
+const (
+	ContentTypeTextPlain = "text/plain; charset=UTF-8"
+	ContentTypeJson      = "application/json"
+)
+
 func setupHttpServer(listen string) *http.Server {
 	s := &http.Server{
 		Addr:           listen,
@@ -54,10 +59,11 @@ func setupHttpServer(listen string) *http.Server {
 	http.HandleFunc(SERVE_PREFIX+"/ip-valid", apiIpValidPage)
 	http.HandleFunc(SERVE_PREFIX+"/ip-valid-stats", apiIpValidStatsPage)
 	http.HandleFunc(SERVE_PREFIX+"/hostnames-json", apiHostnamesJsonPage)
-	// MISSING: graph-dot
+	http.HandleFunc(SERVE_PREFIX+"/graph-dot", apiGraphDot)
 	http.HandleFunc("/helpz", apiHelpz)
 	http.HandleFunc("/scanstatusz", apiScanStatusz)
-	// MISSING: threadz environz rescanz internalz
+	// MISSING: threadz environz rescanz internalz quitz
+	// leave quitz out?
 	http.HandleFunc("/", apiOops)
 	return s
 }
@@ -67,18 +73,18 @@ func apiOops(w http.ResponseWriter, req *http.Request) {
 		http.NotFound(w, req)
 		return
 	}
-	w.Header().Set("Content-Type", "text/plain; charset=UTF-8")
+	w.Header().Set("Content-Type", ContentTypeTextPlain)
 	fmt.Fprintf(w, "You shouldn't see this top level.  Err, oops?\n")
 }
 
 func apiHelpz(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=UTF-8")
+	w.Header().Set("Content-Type", ContentTypeTextPlain)
 	fmt.Fprintf(w, "Some help here one day, maybe.\n")
 	//TODO: write
 }
 
 func apiScanStatusz(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=UTF-8")
+	w.Header().Set("Content-Type", ContentTypeTextPlain)
 	SpiderDiagnostics(w)
 	fmt.Fprintf(w, "\nDone.\n")
 }
@@ -292,7 +298,10 @@ func apiIpValidPage(w http.ResponseWriter, req *http.Request) {
 	)
 
 	if emitJson {
-		contentType = "application/json"
+		contentType = ContentTypeJson
+		if _, ok := req.Form["textplain"]; ok {
+			contentType = ContentTypeTextPlain
+		}
 		doShowStats = func() {
 			b, err := json.Marshal(statsList)
 			if err != nil {
@@ -311,7 +320,7 @@ func apiIpValidPage(w http.ResponseWriter, req *http.Request) {
 			fmt.Fprintf(w, "\n}\n")
 		}
 	} else {
-		contentType = "text/plain; charset=UTF-8"
+		contentType = ContentTypeTextPlain
 		doShowStats = func() {
 			for _, l := range statsList {
 				fmt.Fprintf(w, "STATS: %s\n", l)
@@ -724,9 +733,9 @@ func apiHostnamesJsonPage(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	contentType := "application/json"
+	contentType := ContentTypeJson
 	if _, ok := req.Form["textplain"]; ok {
-		contentType = "text/plain"
+		contentType = ContentTypeTextPlain
 	}
 	w.Header().Set("Content-Type", contentType)
 	fmt.Fprintf(w, "{ \"hostnames\": %s }\n", b)
