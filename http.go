@@ -402,10 +402,17 @@ func apiIpValidPage(w http.ResponseWriter, req *http.Request) {
 		}
 
 		if limitToCountries != nil {
-			//XXX collect node countries here, yada yada
-			// for now, if it's a country constraint, nothing matches
-			skip_this_country = true
-			count_servers_wrong_country += 1
+			var keep bool
+			for _, ip := range node.IpList {
+				geo, ok := persisted.IPCountryMap[ip]
+				if ok && limitToCountries.HasCountry(geo) {
+					keep = true
+				}
+			}
+			if !keep {
+				skip_this_country = true
+				count_servers_wrong_country += 1
+			}
 		}
 
 		if len(node.IpList) > 0 {
