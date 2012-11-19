@@ -44,7 +44,6 @@ To-Do
 -----
 
 * Preserve more errors for the front-page?
-* `.dot` file generation
 * Look over the admin interfaces, probably want `/rescanz` back
 * If add rescanz, need locking around spider starting; can preserve spider
   handle while at it, and make it possible to, eg kill an existing scan using

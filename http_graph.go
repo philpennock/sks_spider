@@ -61,6 +61,12 @@ func apiGraphDot(w http.ResponseWriter, req *http.Request) {
 	filename := fmt.Sprintf("sks-peers-%s.dot", timestamp)
 	w.Header().Set("Content-Type", "text/x-graphviz; charset=UTF-8")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+
+	if req.Method == "HEAD" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	fmt.Fprintf(w, "digraph sks {\n")
 	for _, hostname := range persisted.Sorted {
 		attributes := make(GraphvizAttributes)
