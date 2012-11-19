@@ -217,6 +217,8 @@ func Main() {
 		}
 	}
 
+	var doneRespider bool
+
 	if *flJsonLoad != "" {
 		Log.Printf("Loading hosts from \"%s\" instead of spidering", *flJsonLoad)
 		hostmap, err := LoadJSONFromFile(*flJsonLoad)
@@ -243,11 +245,14 @@ func Main() {
 		Log.Printf("Spidering complete")
 		normaliseMeshAndSet(spider, true)
 		go respiderPeriodically()
+		doneRespider = true
 	}
 
 	if *flJsonPersistPath != "" {
 		signalChan := make(chan os.Signal)
-		go respiderPeriodically()
+		if !doneRespider {
+			go respiderPeriodically()
+		}
 		go shutdownRunner(signalChan)
 		// Warning: Unix-specific, need to figure out how to make this signal-handling
 		// replacable with another notification mechanism which is system-local and easily
