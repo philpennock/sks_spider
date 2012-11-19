@@ -22,8 +22,10 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"os/signal"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -45,6 +47,8 @@ var (
 	flLogStdout          = flag.Bool("log-stdout", false, "Log to stdout instead of log-file")
 	flJsonDump           = flag.String("json-dump", "", "File to dump JSON of spidered hosts to")
 	flJsonLoad           = flag.String("json-load", "", "File to load JSON hosts from instead of spidering")
+	flJsonPersistPath    = flag.String("json-persist", "", "File to load at startup if exists, and write to at SIGUSR1")
+	flStartedFlagfile    = flag.String("started-file", "", "Create this file after started and running")
 )
 
 var serverHeadersNative = map[string]bool{
@@ -173,6 +177,24 @@ func startHttpServing() {
 	httpServing.Done()
 }
 
+func shutdownRunner(ch <-chan os.Signal) {
+	signal, ok := <-ch
+	if !ok {
+		return
+	}
+	persisted := GetCurrentPersisted()
+	if persisted != nil {
+		Log.Printf("Received signal %s; saving JSON to \"%s\"", signal, *flJsonPersistPath)
+		err := persisted.HostMap.DumpJSONToFile(*flJsonPersistPath)
+		if err != nil {
+			Log.Printf("Error saving shutdown JSON: %s", err)
+		} else {
+			Log.Print("Wrote shutdown JSON")
+		}
+	}
+	httpServing.Done()
+}
+
 func Main() {
 	flag.Parse()
 
@@ -186,6 +208,14 @@ func Main() {
 
 	httpServing.Add(1)
 	go startHttpServing()
+
+	if *flJsonPersistPath != "" {
+		if _, err := os.Stat(*flJsonPersistPath); err == nil {
+			if *flJsonLoad == "" {
+				*flJsonLoad = *flJsonPersistPath
+			}
+		}
+	}
 
 	if *flJsonLoad != "" {
 		Log.Printf("Loading hosts from \"%s\" instead of spidering", *flJsonLoad)
@@ -213,6 +243,29 @@ func Main() {
 		Log.Printf("Spidering complete")
 		normaliseMeshAndSet(spider, true)
 		go respiderPeriodically()
+	}
+
+	if *flJsonPersistPath != "" {
+		signalChan := make(chan os.Signal)
+		go respiderPeriodically()
+		go shutdownRunner(signalChan)
+		// Warning: Unix-specific, need to figure out how to make this signal-handling
+		// replacable with another notification mechanism which is system-local and easily
+		// triggered from an rc script
+		signal.Notify(signalChan, syscall.SIGUSR1)
+	}
+
+	if *flStartedFlagfile != "" {
+		fh, err := os.Create(*flStartedFlagfile)
+		if err == nil {
+			fmt.Fprintf(fh, "Started %s\n", os.Args[0])
+			err = fh.Close()
+			if err != nil {
+				Log.Printf("Error in close(%s): %s", *flStartedFlagfile, err)
+			}
+		} else {
+			Log.Printf("Failed to create -started-file: %s", err)
+		}
 	}
 
 	httpServing.Wait()
