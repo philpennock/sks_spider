@@ -1,0 +1,14 @@
+language: go
+
+install:
+ - SPIDER_DIR="github.com/syscomet/sks_spider"
+ - BTREE_DIR="github.com/runningwild/go-btree"
+ - GOTGO_DIR="github.com/droundy/gotgo/gotgo"
+ - CHECKOUT_TOP="${GOPATH%%:*}/src"
+ - go get -fix -d -v "$BTREE_DIR"
+ - "( cd \"$CHECKOUT_TOP/$BTREE_DIR\" && rm bench.go test.go )"
+ - go get -d "$GOTGO_DIR"
+ - go build -v "$GOTGO_DIR"
+ - ./gotgo -o "$CHECKOUT_TOP/$BTREE_DIR/btree.go" "$CHECKOUT_TOP/$BTREE_DIR/btree.got" string
+ - go get -d -v
+ - go build -v sks_stats_daemon.go

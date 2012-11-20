@@ -63,7 +63,7 @@ Grab https://github.com/droundy/gotgo and put some go1 `// +build ignore`
 magic into a couple of the benchmark files, and you'll be able to build
 the `gotgo` and `gotimports` commands.
 
-In the gotgo directory, run:
+In the `go-btree` directory, run:
 
     gotgo -o btree.go btree.got string
 
