@@ -67,6 +67,18 @@ func apiGraphDot(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// If we add a bi-directional link A<->B, then we put a key "B:A" into this
+	// map, so that we don't emit a second bi-directional from the other side.
+	shown := make(map[string]bool, len(persisted.Sorted) * len(persisted.Sorted))
+
+	// There's also "concentrate" but it's not fully supported and I'm not sure
+	// about what is meant by "causes partially parallel edges to share part of
+	// their paths".
+	// Semantically, we'll have to hope that dir=both is more than just decoration.
+
+	// We'll emit constraint=false because it's a mesh of peers, none more
+	// important than another.  Not even the seed we happened to use.
+
 	fmt.Fprintf(w, "digraph sks {\n")
 	for _, hostname := range persisted.Sorted {
 		attributes := make(GraphvizAttributes)
@@ -84,9 +96,20 @@ func apiGraphDot(w http.ResponseWriter, req *http.Request) {
 		}
 		fmt.Fprintf(w, "\t\"%s\" [%s];\n", hostname, attributes)
 	}
+	var directionality string
 	for _, hostname := range persisted.Sorted {
 		for peername := range persisted.Graph.Outbound(hostname) {
-			fmt.Fprintf(w, "\t\"%s\" -> \"%s\";\n", hostname, peername)
+			backwards := fmt.Sprintf("%s:%s", peername, hostname)
+			if shown[backwards] {
+				continue
+			}
+			if persisted.Graph.ExistsLink(peername, hostname) {
+				directionality = " dir=both"
+				shown[backwards] = true
+			} else {
+				directionality = ""
+			}
+			fmt.Fprintf(w, "\t\"%s\" -> \"%s\" [constraint=false%s];\n", hostname, peername, directionality)
 		}
 	}
 	fmt.Fprintf(w, "}\n")
