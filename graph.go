@@ -40,6 +40,18 @@ func btreeStringLess(a, b string) bool {
 	return a < b
 }
 
+// This is horrid, would ideally create a second instantiation of btree not
+// using strings.
+func btreeHostLess(a, b string) bool {
+	tmp := strings.Split(a, ".")
+	ReverseStringSlice(tmp)
+	revA := strings.Join(tmp, ".")
+	tmp = strings.Split(b, ".")
+	ReverseStringSlice(tmp)
+	revB := strings.Join(tmp, ".")
+	return revA < revB
+}
+
 func NewHostGraph(count int, aliasMap AliasMap) *HostGraph {
 	outbound := make(map[string]btree.SortedSet, count)
 	inbound := make(map[string]btree.SortedSet, count)
@@ -109,7 +121,7 @@ func (hg *HostGraph) AllPeersOf(name string) []string {
 	if !ok {
 		return []string{}
 	}
-	allPeers := btree.NewTree(btreeStringLess)
+	allPeers := btree.NewTree(btreeHostLess)
 	for out := range hg.outbound[canonName].Data() {
 		allPeers.Insert(out)
 	}
