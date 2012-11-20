@@ -41,7 +41,7 @@ func SpiderDiagnostics(out io.Writer) {
 }
 
 func (spider *Spider) diagnosticDumpInRoutine(out io.Writer) {
-	fmt.Fprintf(out, "BatchAddHost: %d, %d\n", len(spider.batchAddHost))
+	fmt.Fprintf(out, "BatchAddHost: %d / %d\n", len(spider.batchAddHost), cap(spider.batchAddHost))
 	fmt.Fprintf(out, "Waitgroup: %#+v\n", spider.pending)
 	hostnames := make([]string, len(spider.pendingHosts))
 	i := 0

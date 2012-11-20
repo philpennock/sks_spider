@@ -12,3 +12,8 @@ install:
  - ./gotgo -o "$CHECKOUT_TOP/$BTREE_DIR/btree.go" "$CHECKOUT_TOP/$BTREE_DIR/btree.got" string
  - go get -d -v
  - go build -v sks_stats_daemon.go
+ - go test -i
+
+script:
+ - go vet
+ - go test -v
