@@ -77,7 +77,12 @@ After that, the btree import will work and the code should build with:
 
     go build github.com/syscomet/sks_spider/sks_stats_daemon.go
 
-(Of course, I write this before pushing to github, so maybe not ...)
+If you encounter problems, look at the `.travis.yml` file which is used
+for running the Travis Continuous Integration tests:
+<https://travis-ci.org/syscomet/sks_spider>.
+That assumes some other prep steps run automatically by Travis, but the test
+log should show everything in context.
+
 
 Running
 -------
