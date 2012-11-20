@@ -31,7 +31,7 @@ This version is written in Golang (the Go programming language) and makes
 fairly decent use of Go's concurrency features.  It uses well under a fifth
 the total RAM, something similarly smaller in RSS, uses less CPU (when busy,
 10% of an ancient CPU instead of all of one; when
-"idle" is not sitting at the top of top_(1)_ output, using fractionally more
+"idle" is not sitting at the top of top(1) output, using fractionally more
 CPU than a real idle process) and is _significantly_ more responsive.  These
 improvements are in part because of Golang and in very large part because of
 the ugliness of the old code.  Python's good, I'm bad.
@@ -87,14 +87,21 @@ log should show everything in context.
 Running
 -------
 
-I run, as an unprivileged user:
+You can see the accepted parameters with the `-help` flag:
+
+    sks_stats_daemon -help
+
+You might run, as an unprivileged user:
 
     sks_stats_daemon -log-file /var/log/sks-stats.log
 
-The start-up script (OS-specific) touches and chowns the log-file before
-starting the program.  Note that this tool does not self-detach from the
-terminal: I prefer to leave it where a supervising agent tool can easily
-watch it.
+Note that this tool does not self-detach from the terminal: I prefer to leave
+it where a supervising agent tool can easily watch it.  If you want it to
+detach, then your OS should have available a wrapper command which will handle
+that for you.
+
+The log-file will need to be exist and be writeable by that unprivileged
+user (or be in a directory which that user can create new files in).
 
 Note that the logging does not currently log all HTTP requests; that's the
 responsibility of the front-end (for now?).  Actually, the logging isn't
@@ -102,12 +109,31 @@ production-grade.  It "logs", but that doesn't mean the logs have proven
 themselves adequate at crunch time.
 
 The horrible HTML templates (translated directly from my horrible Python
-ones ... I'm *definitely* not a UI designer) expect a style-sheet and a
+ones ... I'm _definitely_ not a UI designer) expect a style-sheet and a
 `favicon.ico` to be provided as part of the namespace, they're not served
 by this daemon.
 
 Yes, this is a toy program.  It's a useful toy, but definitely not a
 shipping product.
+
+
+My start-up script (OS-specific, not included) `touch`es and `chown`s
+the log-file before starting the program.  It then runs, as the same
+run-time user as is used for `sks` itself (for my convenience in user
+management):
+
+    sks_stats_daemon -log-file /var/log/sks-stats.log \
+      -json-persist /var/sks/stats-persist.json \
+      -started-file /var/sks/stats.started
+
+The `-json-persist` flag causes `sks_stats_daemon` to register a handler
+for `SIGUSR1`; receipt of that signal causes the current mesh to be written to
+the named file (removing any previous content), before exiting.
+
+The start-up script takes a `quickrestart` argument, which sends `SIGUSR1`,
+waits for the process to disappear, then starts `sks_stats_daemon` once more.
+It then waits for the `-started-file` flag-file to appear, then removes it
+and exits.
 
 
 nginx configuration
