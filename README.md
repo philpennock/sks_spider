@@ -24,8 +24,7 @@ live outside of that prefix.
 As well as a stats overview page, there is also an interface to grab lists
 of IPs meeting various serving criteria; I use that to build DNS zones
 automatically, from cron, as a client of this service.  The client was
-unperturbed by the migration, cleanly dropping the sub-zones not currently
-supported.
+unperturbed by the migration.
 
 The original version was written in Python as a WSGI and grew organically.
 This version is written in Golang (the Go programming language) and makes
@@ -37,9 +36,10 @@ CPU than a real idle process) and is _significantly_ more responsive.  These
 improvements are in part because of Golang and in very large part because of
 the ugliness of the old code.  Python's good, I'm bad.
 
-At present, not all the features have been copied across, but what's left is
-less fundamental and can be pulled across at my leisure.  Those other
-features should not significantly impact resource consumption.
+All the production serving interface features have now been copied across;
+all that's left are some admin hooks which aren't really applicable (eg,
+a list of Python threads for introspection).
+Those other features should not significantly impact resource consumption.
 
 
 To-Do
@@ -130,5 +130,5 @@ License
 Apache 2.0.
 
 
-That's about it.
+That's about it.  
 -Phil
