@@ -45,10 +45,17 @@ else
 	echo >&2 "$0: Warning: unknown shell running me"
 fi
 
-gopermitnonfmt=$(git config hooks.gopermitnonfmt)
-gopermitnonvet=$(git config hooks.gopermitnonvet)
-gopermitnonbuild=$(git config hooks.gopermitnonbuild)
-gopermitnontest=$(git config hooks.gopermitnontest)
+# Git is case-insensitive in config names.
+#
+# Default these to run:
+repo_disablecheck_fmt=$(git config hooks.PrecommitGoDisableFmt)
+repo_disablecheck_vet=$(git config hooks.PrecommitGoDisableVet)
+# Default these to not run:
+repo_enablecheck_build=$(git config hooks.PrecommitGoEnableBuild)
+repo_enablecheck_test=$(git config hooks.PrecommitGoEnableTest)
+#
+# To change, use: git config --bool hooks.PrecommitGoEnableBuild true
+#
 
 # See <http://tech.yipit.com/2011/11/16/183772396/> about making sure that the
 # tests are invoked on the code staged for commit.  Also
@@ -98,10 +105,31 @@ if (( gocount < 1 )); then
 fi
 
 check_go_command() {
-	local toggle_off ev
-	toggle_off="$1"
+	local toggle direction ev proceed
+	toggle="$1"
 	shift
-	if [[ "$toggle_off" != true ]]; then
+	direction="$1"
+	shift
+	case $direction in
+		enable)
+			proceed=false
+			if [[ "$toggle" == "true" ]]; then
+				proceed=true
+			fi
+			;;
+		disable)
+			proceed=true
+			if [[ "$toggle" == "true" ]]; then
+				proceed=false
+			fi
+			;;
+		*)
+			die "Internal error, check_go_command($toggle, >>>$direction<<<)"
+			;;
+	esac
+
+	if $proceed
+	then
 		"$@"
 		ev=$?
 		if [[ $ev -ne 0 ]]; then
@@ -110,9 +138,9 @@ check_go_command() {
 	fi
 }
 
-check_go_command "$gopermitnonvet" go vet
+check_go_command "$repo_disablecheck_vet" "disable" go vet
 
-if [[ "$gopermitnonfmt" != "true" ]]; then
+if [[ "$repo_disablecheck_fmt" != "true" ]]; then
 	output="$(for F in **/*.go; do
 		gofmt -l -e "$F"
 	done)"
@@ -123,8 +151,8 @@ if [[ "$gopermitnonfmt" != "true" ]]; then
 	fi
 fi
 
-check_go_command "$gopermitnonbuild" go build
-check_go_command "$gopermitnontest" go test
+check_go_command "$repo_enablecheck_build" "enable" go build
+check_go_command "$repo_enablecheck_test" "enable" go test
 
 repository_want_prep && repository_return_to_user
 
