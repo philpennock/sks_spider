@@ -1,10 +1,38 @@
 #!/bin/bash
+#
+# git .git/hooks/pre-commit candidate for usage in Go repositories
+#
 
-shopt -s globstar
+# MacOS ships with bash3, which isn't enough.
+
+if [[ "${BASH_VERSION}" != "" && ${BASH_VERSINFO[0]} -lt 4 ]]; then
+	# have no globstar shopt; switch to zsh if available
+	zshpath="$(type -p zsh)"
+	if [[ "$zshpath" != "" ]]; then
+		exec "$zshpath" -f "$0" "$@"
+	else
+		echo >&2 "$0: self setup error: unable to use zsh or recent bash"
+		exit 1
+	fi
+fi
+
+if [[ "${BASH_VERSION}" != "" ]]; then
+	shopt -s globstar
+elif [[ "${ZSH_VERSION}" != "" ]]; then
+	# ** is supported by default, in versions of zsh stretching back at least a decade
+	:
+else
+	echo >&2 "$0: Warning: unknown shell running me"
+fi
 
 gopermitnonfmt=$(git config hooks.gopermitnonfmt)
 
 if [[ "$gopermitnonfmt" != "true" ]]; then
+	gocount=$(find . -name '*.go' | wc -l)
+	if (( gocount < 1 )); then
+		echo >&2 "Error: this repository is expected to contain .go files and does not"
+		exit 1
+	fi
 	output="$(for F in **/*.go; do
 		gofmt -l -e "$F"
 	done)"
