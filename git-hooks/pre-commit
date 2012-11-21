@@ -27,6 +27,8 @@ fi
 
 gopermitnonfmt=$(git config hooks.gopermitnonfmt)
 gopermitnonvet=$(git config hooks.gopermitnonvet)
+gopermitnonbuild=$(git config hooks.gopermitnonbuild)
+gopermitnontest=$(git config hooks.gopermitnontest)
 
 gocount=$(find . -name '*.go' | wc -l)
 if (( gocount < 1 )); then
@@ -34,14 +36,21 @@ if (( gocount < 1 )); then
 	exit 1
 fi
 
-if [[ "$gopermitnonvet" != "true" ]]; then
-	go vet
-	ev=$?
-	if [[ $ev -ne 0 ]]; then
-		echo >&2 "Error: go vet failed, rejecting commit"
-		exit $ev
+check_go_command() {
+	local toggle_off ev
+	toggle_off="$1"
+	shift
+	if [[ "$toggle_off" != true ]]; then
+		"$@"
+		ev=$?
+		if [[ $ev -ne 0 ]]; then
+			echo >&2 "Error: '$*' failed, rejecting commit"
+			exit $ev
+		fi
 	fi
-fi
+}
+
+check_go_command "$gopermitnonvet" go vet
 
 if [[ "$gopermitnonfmt" != "true" ]]; then
 	output="$(for F in **/*.go; do
@@ -53,5 +62,8 @@ if [[ "$gopermitnonfmt" != "true" ]]; then
 		exit 1
 	fi
 fi
+
+check_go_command "$gopermitnonbuild" go build
+check_go_command "$gopermitnontest" go test
 
 exit 0
