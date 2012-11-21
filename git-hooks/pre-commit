@@ -41,6 +41,10 @@ repository_want_prep() {
 }
 
 repository_set_for_checks() {
+	if git status --porcelain | grep '^ M' >&2
+	then
+		echo >&2 "Warning: files above modified but not staged for commit"
+	fi
 	git stash --keep-index --all --quiet
 }
 
