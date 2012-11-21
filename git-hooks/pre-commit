@@ -30,10 +30,47 @@ gopermitnonvet=$(git config hooks.gopermitnonvet)
 gopermitnonbuild=$(git config hooks.gopermitnonbuild)
 gopermitnontest=$(git config hooks.gopermitnontest)
 
+# See <http://tech.yipit.com/2011/11/16/183772396/> about making sure that the
+# tests are invoked on the code staged for commit.  Also
+# <http://codeinthehole.com/writing/tips-for-using-a-git-pre-commit-hook/>
+# and "git help stash" to come up with our own options.
+# If we have PRE_COMMIT_DIRTY=true in environment, then we don't do that.
+
+repository_want_prep() {
+	[[ "${PRE_COMMIT_DIRTY:-}" != "true" ]]
+}
+
+repository_set_for_checks() {
+	git stash --keep-index --all --quiet
+}
+
+repository_return_to_user() {
+	git reset --hard --quiet
+	git stash pop --index --quiet
+}
+
+die() {
+	ev=$?
+	if [[ $1 =~ '^[0-9][0-9]*$' ]]; then
+		ev=$1
+		shift
+	fi
+	if [[ $ev -eq 0 ]]; then
+		ev=1
+	fi
+	if [[ $# -gt 0 ]]; then
+		echo >&2 "Error: $*"
+	fi
+
+	repository_want_prep && repository_return_to_user
+	exit $ev
+}
+
+repository_want_prep && repository_set_for_checks
+
 gocount=$(find . -name '*.go' | wc -l)
 if (( gocount < 1 )); then
-	echo >&2 "Error: this repository is expected to contain .go files and does not"
-	exit 1
+	die "this repository is expected to contain .go files and does not"
 fi
 
 check_go_command() {
@@ -44,8 +81,7 @@ check_go_command() {
 		"$@"
 		ev=$?
 		if [[ $ev -ne 0 ]]; then
-			echo >&2 "Error: '$*' failed, rejecting commit"
-			exit $ev
+			die "'$*' failed, rejecting commit"
 		fi
 	fi
 }
@@ -59,11 +95,13 @@ if [[ "$gopermitnonfmt" != "true" ]]; then
 	if [[ "$output" != "" ]]; then
 		echo >&2 "Error: some files need 'go fmt':"
 		cat -v >&2 <<<"$output"
-		exit 1
+		die
 	fi
 fi
 
 check_go_command "$gopermitnonbuild" go build
 check_go_command "$gopermitnontest" go test
+
+repository_want_prep && repository_return_to_user
 
 exit 0
