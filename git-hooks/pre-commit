@@ -1,0 +1,18 @@
+#!/bin/bash
+
+shopt -s globstar
+
+gopermitnonfmt=$(git config hooks.gopermitnonfmt)
+
+if [[ "$gopermitnonfmt" != "true" ]]; then
+	output="$(for F in **/*.go; do
+		gofmt -l -e "$F"
+	done)"
+	if [[ "$output" != "" ]]; then
+		echo >&2 "Error: some files need 'go fmt':"
+		cat -v >&2 <<<"$output"
+		exit 1
+	fi
+fi
+
+exit 0
