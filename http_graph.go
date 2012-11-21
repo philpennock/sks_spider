@@ -69,7 +69,7 @@ func apiGraphDot(w http.ResponseWriter, req *http.Request) {
 
 	// If we add a bi-directional link A<->B, then we put a key "B:A" into this
 	// map, so that we don't emit a second bi-directional from the other side.
-	shown := make(map[string]bool, len(persisted.Sorted) * len(persisted.Sorted))
+	shown := make(map[string]bool, len(persisted.Sorted)*len(persisted.Sorted))
 
 	// There's also "concentrate" but it's not fully supported and I'm not sure
 	// about what is meant by "causes partially parallel edges to share part of
