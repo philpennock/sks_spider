@@ -26,13 +26,24 @@ else
 fi
 
 gopermitnonfmt=$(git config hooks.gopermitnonfmt)
+gopermitnonvet=$(git config hooks.gopermitnonvet)
+
+gocount=$(find . -name '*.go' | wc -l)
+if (( gocount < 1 )); then
+	echo >&2 "Error: this repository is expected to contain .go files and does not"
+	exit 1
+fi
+
+if [[ "$gopermitnonvet" != "true" ]]; then
+	go vet
+	ev=$?
+	if [[ $ev -ne 0 ]]; then
+		echo >&2 "Error: go vet failed, rejecting commit"
+		exit $ev
+	fi
+fi
 
 if [[ "$gopermitnonfmt" != "true" ]]; then
-	gocount=$(find . -name '*.go' | wc -l)
-	if (( gocount < 1 )); then
-		echo >&2 "Error: this repository is expected to contain .go files and does not"
-		exit 1
-	fi
 	output="$(for F in **/*.go; do
 		gofmt -l -e "$F"
 	done)"
