@@ -23,6 +23,12 @@
 #
 # git .git/hooks/pre-commit candidate for usage in Go repositories
 #
+# To see the git config options available, see the configuration section
+# below, under the shell-finding code.
+#
+
+# ======================================================================
+# Get an acceptable shell
 
 # MacOS ships with bash3, which isn't enough.
 if [[ "${BASH_VERSION}" != "" && ${BASH_VERSINFO[0]} -lt 4 ]]; then
@@ -45,6 +51,9 @@ else
 	echo >&2 "$0: Warning: unknown shell running me"
 fi
 
+# ======================================================================
+# Grab configuration
+
 # Git is case-insensitive in config names.
 #
 # Default these to run:
@@ -52,16 +61,29 @@ repo_disablecheck_fmt=$(git config hooks.PrecommitGoDisableFmt)
 repo_disablecheck_vet=$(git config hooks.PrecommitGoDisableVet)
 # Default these to not run:
 repo_enablecheck_build=$(git config hooks.PrecommitGoEnableBuild)
+repo_build_target=($(git config --get-all hooks.PrecommitGoBuildExtraTarget))
 repo_enablecheck_test=$(git config hooks.PrecommitGoEnableTest)
 #
-# To change, use: git config --bool hooks.PrecommitGoEnableBuild true
+# To change, use:
+#  git config --bool hooks.PrecommitGoEnableBuild true
+#  git config --replace-all hooks.PrecommitGoBuildExtraTarget "cmd1.go cmd2.go"
 #
+# For the extra target, you can either specify multiple parameters split by
+# whitespace, or use multiple parameters (so --add instead of --replace-all).
+# Either works, both work together.  This script assumes that filenames in
+# the repo can be safely split on whitespace.
+#
+
+# ======================================================================
+# Utilities
 
 # See <http://tech.yipit.com/2011/11/16/183772396/> about making sure that the
 # tests are invoked on the code staged for commit.  Also
 # <http://codeinthehole.com/writing/tips-for-using-a-git-pre-commit-hook/>
 # and "git help stash" to come up with our own options.
 # If we have PRE_COMMIT_DIRTY=true in environment, then we don't do that.
+
+repo_stash_done=false
 
 repository_want_prep() {
 	[[ "${PRE_COMMIT_DIRTY:-}" != "true" ]]
@@ -73,11 +95,15 @@ repository_set_for_checks() {
 		echo >&2 "Warning: files above modified but not staged for commit"
 	fi
 	git stash --keep-index --all --quiet
+	repo_stash_done=true
 }
 
 repository_return_to_user() {
-	git reset --hard --quiet
-	git stash pop --index --quiet
+	if $repo_stash_done; then
+		git reset --hard --quiet
+		git stash pop --index --quiet
+		repo_stash_done=false
+	fi
 }
 
 die() {
@@ -94,10 +120,33 @@ die() {
 	fi
 
 	repository_want_prep && repository_return_to_user
+	# For bash4, could { trap - EXIT } here, but zsh localises EXIT to
+	# be for the function, can't affect the global EXIT trap.  So instead
+	# we don't complain in repository_return_to_user() if already popped.
 	exit $ev
 }
 
-repository_want_prep && repository_set_for_checks
+die_if_command_failed() {
+	local ev=$?
+	if [[ $ev -eq 0 ]]; then
+		return
+	fi
+	die "'$*' failed, rejecting commit"
+}
+
+run_and_die_on_failure() {
+	"$@"
+	die_if_command_failed "$@"
+}
+
+# ======================================================================
+# Start work.
+
+if repository_want_prep
+then
+	trap 'repository_return_to_user' EXIT SIGINT SIGTERM
+	repository_set_for_checks
+fi
 
 gocount=$(find . -name '*.go' | wc -l)
 if (( gocount < 1 )); then
@@ -130,11 +179,7 @@ check_go_command() {
 
 	if $proceed
 	then
-		"$@"
-		ev=$?
-		if [[ $ev -ne 0 ]]; then
-			die "'$*' failed, rejecting commit"
-		fi
+		run_and_die_on_failure "$@"
 	fi
 }
 
@@ -152,8 +197,15 @@ if [[ "$repo_disablecheck_fmt" != "true" ]]; then
 fi
 
 check_go_command "$repo_enablecheck_build" "enable" go build
+if [[ ${#repo_build_target} -gt 0 && "$repo_enablecheck_build" == true ]]; then
+	for target in "${repo_build_target[@]}"; do
+		run_and_die_on_failure go build -o /dev/null "$target"
+	done
+fi
+
 check_go_command "$repo_enablecheck_test" "enable" go test
 
 repository_want_prep && repository_return_to_user
+trap - EXIT
 
 exit 0
