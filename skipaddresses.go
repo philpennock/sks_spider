@@ -61,6 +61,7 @@ func prepDisallowedIPs() {
 		_, block, _ := net.ParseCIDR(spec)
 		list = append(list, block)
 	}
+	disallowedIPs = list
 }
 
 func IPDisallowed(ipstr string) bool {
