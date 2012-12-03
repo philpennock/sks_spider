@@ -1,0 +1,667 @@
+#!/usr/bin/perl
+#
+# This update_sks_zone file was imported from spodhuis-tools SVN commit 373.
+#
+# There is perldoc documentation available.
+# Invoke perldoc(1) against this file.
+#
+use warnings;
+use strict;
+
+my $SOURCE_URL	= 'http://sks.spodhuis.org/sks-peers/ip-valid';
+my $DEST_FILE	= '/etc/namedb-auth/staging-sync/sks-pool-globnix.zone';
+my $OVERRIDES_FILE = '/etc/namedb-auth/auto-rules';
+my $MIN_IPS	= 5;
+my $ZONE_TTL	= '900';
+my $ZONE_ORIGIN	= 'sks.pool.globnix.net.';
+my @ZONE_NS	= ('nlns.globnix.net.', 'us0ns.globnix.net.');
+my $ZONE_ADMIN	= 'hostmaster.globnix.net.';
+my $ZONE_TIMERS	= '12h 30m 1w 15m'; # refresh retry expire def/min-ttl
+my $VERBOSE	= 0;
+my $EXIT_SUCCESS_NOUPDATE = 0;
+my $FORCE_WRITE_ZONE = 0;
+my $CHECKSUM_DIGEST_TYPE = 'SHA-256';
+my $GENERATE_SRV = 1;
+my $KEEP_6TO4	= 0;
+my $MINIMUM_SKS	= '1.1.2';
+
+
+use Digest;
+use File::Slurp;
+use Getopt::Long;
+use JSON::XS;
+use LWP::Simple;
+use IO::File;
+use Net::IP;
+use Pod::Usage;
+use POSIX qw(strftime);
+use Socket;
+use Socket6;
+
+sub verbose {
+	return unless $VERBOSE;
+	local $_;
+	my $c = scalar @_;
+	my $i = 0;
+	foreach (@_) {
+		print STDERR $_;
+		$i += 1;
+		if ($i == $c) {
+			print STDERR "\n" unless /\n\z/;
+		} else {
+			print STDERR ' ' unless /[\s\n]\z/;
+		}
+	}
+}
+
+sub fetch_ips
+{
+	my $param = shift;
+	my $options = shift;
+	$options = {} unless defined $options;
+
+	my $min_ips = exists $options->{'min_ips'} ? $options->{'min_ips'} : $MIN_IPS;
+
+	my $url = $SOURCE_URL;
+	if (scalar keys %$param) {
+		$url .= "?";
+		my $multiple = 0;
+		foreach my $k (keys %$param) {
+			my $sep = $multiple ? '&' : '';
+			$url .= "${sep}${k}=$param->{$k}";
+			$multiple = 1;
+		}
+	}
+	verbose "Fetching <URL:$url>";
+	my $content = get($url);
+
+	die "Unable to fetch src URL: $!" unless defined $content;
+# IP-Gen/1.1: status=COMPLETE count=28 tags=skip_1010 collected=2009-03-24T23:55:37Z
+	die "not IP-Gen/1.1 src URL content" unless $content =~ m!^IP-Gen/1.1:!;
+	my @lines = split(/\n/, $content);
+	die "src url not dot-terminated" unless $lines[$#lines] eq '.';
+	pop @lines;
+	my $header = shift @lines;
+	$header =~ s!^IP-Gen/1.1:\s+!!;
+	my %headers = map {
+		my $i=index $_, '='; if ($i == -1) { ($i, '') } else {
+			(substr($_, 0, $i), substr($_, $i+1)) }
+		} split(/\s+/, $header);
+	my $header_line_count = 0 + $headers{'count'};
+	my $count = scalar @lines;
+	die "Incomplete data (status)\n {$header}\n "
+		unless $headers{'status'} eq 'COMPLETE';
+	die "Missing timestamp\n {$header}\n "
+		unless exists $headers{'collected'} and length($headers{'collected'});
+	die "No lines in returned data\n {$header}\n "
+		unless $header_line_count;
+	die "Mismatch line count $header_line_count vs $count"
+		unless $header_line_count == $count;
+	unless ($FORCE_WRITE_ZONE) {
+		die "Not enough IPs ($count < $min_ips)" unless $count >= $min_ips;
+	}
+	verbose "Fetched $count entries";
+	return { headers => \%headers, ips => \@lines, query => \%_ };
+}
+
+sub read_zone
+{
+	unless (-e $DEST_FILE) {
+		return undef;
+	}
+	my $fh = new IO::File $DEST_FILE, '<' or die "read-open($DEST_FILE): $!\n";
+	my @history;
+	my $soa_serial;
+	my $old_timestamp;
+	my $old_data_checksum;
+	my $old_data_count;
+	my $old_data_count_subzones;
+	while (<$fh>) {
+		if (/^;\s+SOA-SERIAL:\s+(\d+)\s*$/) {
+			$soa_serial = $1;
+			next;
+		}
+		if (/^;\s+TIMESTAMP:\s+(\S+)\s*$/) {
+			$old_timestamp = $1;
+			next;
+		}
+		if (/^;\s+HISTORY:\s+(.+?)\s*$/) {
+			push @history, $1;
+			next;
+		}
+		if (/^;\s+CHECKSUM:\s+(\S+)\s+(.+?)\s*$/) {
+			$old_data_checksum = [$1, $2];
+			next;
+		}
+		if (/^;\s+COUNT:\s+(\d+)\s*$/) {
+			$old_data_count = $1;
+			next;
+		}
+		if (/^;\s+COUNT-SUBZONES:\s+(\d+)\s*$/) {
+			$old_data_count_subzones = $1;
+			next;
+		}
+	}
+	$fh->close();
+	return {
+		soa_serial => $soa_serial,
+		old_timestamp => $old_timestamp,
+		history => \@history,
+		old_checksum => $old_data_checksum,
+		old_count => $old_data_count,
+		old_count_subzones => $old_data_count_subzones,
+	};
+}
+
+sub write_emit_ips_section
+{
+	my $fh = shift;
+	my $fetched = shift;
+
+	my $do_header = sub {
+		my $hdr = shift;
+		my $desc = shift;
+		return unless exists $fetched->{'headers'}{$hdr};
+		my $t = $fetched->{'headers'}{$hdr};
+		return unless defined $t and length $t;
+		$t =~ s/\\/\\\\/g;
+		$t =~ s/"/\\"/g;
+		print {$fh} "@\tIN TXT \"$desc: $t\"\n";
+	};
+
+	$do_header->('min', 'minimum keys to be in pool');
+	$do_header->('collected', 'data spidered by server at');
+	$do_header->('minimum_version', 'minimum SKS version to be in pool');
+	if (exists $fetched->{'constraint'}) {
+		my $t = $fetched->{'constraint'};
+		print {$fh} "@\tIN TXT \"$t\"\n";
+	}
+
+	my @sorted = sort(@{$fetched->{'ips'}});
+	my @ipv4 = grep {$_ !~ /:/} @sorted;
+	my @ipv6 = grep {$_ =~ /:/} @sorted;
+	foreach my $pair (
+		['keys', \@sorted],
+		['keys.ipv4', \@ipv4],
+		['keys.ipv6', \@ipv6],
+	) {
+		my ($label, $ips) = @$pair;
+		print {$fh} "\n";
+		foreach my $ip (@$ips) {
+			my $type = $ip =~ /:/ ? 'AAAA' : 'A';
+			print {$fh} "$label\tIN\t$type\t$ip\n";
+		}
+	}
+
+	if ($GENERATE_SRV) {
+		print {$fh} "\n";
+		print {$fh} "; nb: dual-stacked hosts are effectively double-weighted\n";
+		my $max = scalar @sorted;
+		my $prefix_len = 1;
+		for (my $chunk = $max; $chunk > 26; $chunk /= 26) {
+			$prefix_len += 1;
+		}
+		my $index = -1;
+		foreach my $ip (@sorted) {
+			# want: aba.bal
+			$index += 1;
+			my @index_chars;
+			my $chunk = $index;
+			for (my $i = 0; $i < $prefix_len; ++$i) {
+				$index_chars[$i] = chr( ord('a') + ($chunk % 26) );
+				$chunk /= 26;
+			}
+			my $indexstr = join('', reverse(@index_chars));
+
+			my $type = $ip =~ /:/ ? 'AAAA' : 'A';
+			print {$fh} "$indexstr.bal\tIN\t$type\t$ip\n";
+			# draft-shaw-openpgp-hkp-00.txt specifies a service name of "hkp".
+			# DNS-SD lists different values at:
+			#   http://www.dns-sd.org/ServiceTypes.html
+			# including: pgpkey-hkp pgpkey-http pgpkey-https pgpkey-ldap pgpkey-mailto
+			# GnuPG switched to using pgpkey-http/pgpkey-https (commit 2009-07-06).
+			print {$fh} "_hkp._tcp\tIN\tSRV 0 1000 11371 $indexstr.bal\n";
+			print {$fh} "_pgpkey-http._tcp\tIN\tSRV 0 1000 11371 $indexstr.bal\n";
+		}
+	}
+	print {$fh} <<"EOSUBZONE";
+
+;
+; Count=@{[scalar @sorted]} IPv4=@{[scalar @ipv4]} IPv6=@{[scalar @ipv6]}
+;
+
+EOSUBZONE
+}
+
+sub write_zone
+{
+	my $fetched = shift;
+	my $old = shift;
+	my $fn = "$DEST_FILE.$$";
+	my $fh = new IO::File $fn, O_WRONLY|O_CREAT|O_EXCL or die "write-open($fn): $!\n";
+	my $now = strftime("%Y-%m-%d %H:%M:%S Z", gmtime());
+	my $data_timestamp = $fetched->{'headers'}{'collected'};
+	my $data_count = $fetched->{'count'};
+	my $data_count_subzones = $fetched->{'count_all_subzones'};
+	my $data_checksum = $fetched->{'checksum_string'};
+	my $new_serial = defined $old ? $old->{'soa_serial'} + 1 : 1;
+	$ZONE_ORIGIN .= '.' unless $ZONE_ORIGIN =~ /\.\z/;
+	$ZONE_ADMIN =~ s/\@/./;
+	$ZONE_ADMIN .= '.' unless $ZONE_ADMIN =~ /\.\z/;
+
+	print {$fh} <<"EOZ";
+; Auto-generated zonefile by [$0] $now
+;
+; SOA-SERIAL: $new_serial
+; TIMESTAMP: $data_timestamp
+; COUNT: $data_count
+; COUNT-SUBZONES: $data_count_subzones
+; CHECKSUM: $data_checksum
+EOZ
+	if (defined $old) {
+		my $prev_timestamp = $old->{'old_timestamp'};
+		print {$fh} "; HISTORY: $prev_timestamp\n";
+		foreach my $old_ts (@{$old->{'history'}}) {
+			print {$fh} "; HISTORY: $old_ts\n";
+		}
+	}
+	print {$fh} <<"EOZ";
+;
+
+\$TTL $ZONE_TTL
+\$ORIGIN $ZONE_ORIGIN
+\@\tIN SOA $ZONE_NS[0] $ZONE_ADMIN $new_serial $ZONE_TIMERS
+EOZ
+	foreach my $ns (@ZONE_NS) {
+		$ns .= '.' unless $ns =~ /\.\z/;
+		print {$fh} "@\tIN NS $ns\n";
+	}
+	print {$fh} "\n";
+
+	write_emit_ips_section($fh, $fetched);
+
+	foreach my $subzone (keys %{$fetched->{'subzones'}}) {
+		print {$fh} "\n; SUBZONE: $subzone\n\$ORIGIN $subzone.$ZONE_ORIGIN\n";
+		write_emit_ips_section($fh, $fetched->{'subzones'}{$subzone})
+	}
+
+	print {$fh} <<"EOZ";
+
+;
+; EOF
+EOZ
+	$fh->close() or die "write-close($fn) failed: $!\n";
+	rename($fn, $DEST_FILE) or die "rename($fn->...) failed: $!\n";
+	return 0;
+}
+
+sub add_data_checksum
+{
+	my $fetched = shift;
+	my @sorted_by_zone = sort(@{$fetched->{'ips'}});
+
+	$fetched->{'count'} = scalar @sorted_by_zone;
+
+	if (exists $fetched->{'subzones'}) {
+		foreach my $z (keys %{$fetched->{'subzones'}}) {
+			push @sorted_by_zone, sort(@{$fetched->{'subzones'}{$z}{'ips'}});
+		}
+	}
+
+	$fetched->{'count_all_subzones'} = scalar @sorted_by_zone;
+
+	my $digester = Digest->new($CHECKSUM_DIGEST_TYPE)
+		or die "Unable to instantiate digester for \"$CHECKSUM_DIGEST_TYPE\"";
+
+	$digester->add(join("\n", @sorted_by_zone));
+	# harmless if omitted, only after self-consistency, but let's have
+	# a cleaner spec I can state:
+	$digester->add("\n");
+
+	$fetched->{'checksum'} = [ $CHECKSUM_DIGEST_TYPE, $digester->hexdigest() ];
+	$fetched->{'checksum_string'} = join(' ', @{$fetched->{'checksum'}});
+}
+
+sub munge_data
+{
+	my $overrides = shift;
+	my $fetched = shift;
+
+	unless ($KEEP_6TO4) {
+		my @ips = grep {$_ !~ /^2002:/} @{$fetched->{'ips'}};
+		$fetched->{'ips'} = \@ips;
+	}
+	# TODO: also filter Teredo, if we ever see a site that stupid (2001:0::/32)
+
+	return $fetched unless defined $overrides and ref($overrides) eq 'HASH';
+	return $fetched unless exists $overrides->{'pool_exclude'};
+
+	my @exclude;
+	foreach my $hn (@{ $overrides->{'pool_exclude'} }) {
+		my @res = getaddrinfo($hn, '11370', AF_UNSPEC, SOCK_STREAM);
+		while (scalar(@res) >= 5) {
+			my ($family, $socktype, $proto, $saddr, $canonname) = splice(@res, 0, 5);
+			my ($ipstr, $port) = getnameinfo($saddr, NI_NUMERICHOST | NI_NUMERICSERV);
+			verbose("Skip IP [$ipstr] for host: $hn");
+			push @exclude, new Net::IP $ipstr;
+		}
+	}
+	# This is N*M filtering and horrid but crude and works for small M
+	my @ips = map { $_->[0] } grep {
+		my $r = 1;
+		foreach my $ex (@exclude) {
+			$r = 0 if $ex->binip() eq $_->[1]->binip();
+		};
+		$r
+		} map { [ $_, new Net::IP $_] } @{$fetched->{'ips'}};
+	$fetched->{'ips'} = \@ips;
+	return $fetched;
+}
+
+sub fetch_zone_part
+{
+	my $overrides = shift;
+	my $fetch_params = shift;
+	my $constraint = shift;
+
+	my $options = {};
+	if (defined $constraint) {
+		$options->{'min_ips'} = 1;
+	}
+
+	my $fetched;
+	eval { $fetched = fetch_ips($fetch_params, $options); };
+	# URL fetch errors common enough (program just started?) that we
+	# silently finish.
+	if ($@) {
+		if (defined $constraint) {
+			verbose $@;
+			return undef;
+		}
+		die $@ if $VERBOSE;
+		exit 0 if $EXIT_SUCCESS_NOUPDATE;
+		exit 1;
+	}
+
+	if (defined $constraint) {
+		$fetched->{'constraint'} = $constraint;
+	}
+
+	# Before adding a checksum, do data munging
+	munge_data($overrides, $fetched);
+
+	return $fetched;
+}
+
+sub update_zone
+{
+	my $overrides;
+	eval {
+		$overrides = JSON::XS->new->decode(scalar read_file($OVERRIDES_FILE));
+		if (exists $overrides->{'sks'}) {
+			$overrides = $overrides->{'sks'};
+		} else {
+			$overrides = undef;
+		}
+	};
+
+	my $fetched = fetch_zone_part($overrides,
+		{ minimum_version => $MINIMUM_SKS },
+	);
+	$fetched->{'subzones'} = {
+		'ha' => fetch_zone_part($overrides,
+				{ minimum_version => $MINIMUM_SKS, proxies => 1 },
+				'Proxy in front of SKS'
+			),
+
+		# Permit overlap, such as CY.
+
+		'na.region' => fetch_zone_part($overrides,
+				{ minimum_version => $MINIMUM_SKS,
+				# Those geopolitical entities found on
+				# http://en.wikipedia.org/wiki/List_of_sovereign_states_and_dependent_territories_in_North_America
+				# which also have a two-letter ISO 3166 country code, per DIN, as found in /usr/share/misc/iso3166.
+				  countries => 'AG,BS,BB,BZ,CA,CR,CU,DM,DO,SV,GD,GT,HT,HN,JM,MX,NI,PA,KN,LC,VC,TT,US' .
+						',AI,AW,BM,VG,KY,GL,MS,PR,BL,MF,TC,VI' . ',GP,MQ' },
+				'Servers in North America'
+			),
+		'sa.region' => fetch_zone_part($overrides,
+				{ # minimum_version => $MINIMUM_SKS,
+				# http://en.wikipedia.org/wiki/List_of_sovereign_states_and_dependent_territories_in_South_America
+				  countries => 'AR,BO,BR,CL,CO,EC,GY,PY,PE,SR,UY,VE' },
+				'Servers in South America'
+			),
+		'eu.region' => fetch_zone_part($overrides,
+				{ minimum_version => $MINIMUM_SKS,
+				# http://en.wikipedia.org/wiki/List_of_sovereign_states_and_dependent_territories_in_Europe
+				# Add UK to GB
+				  countries => 'AL,AD,AM,AT,AZ,BY,BE,BA,BG,HR,CY,CZ,DK,EE,FI,FR,GE,DE,GR,HU,IS,IE,IT,KZ,LV' .
+						',LI,LT,LU,MK,MT,MD,MC,ME,NL,NO,PL,PT,RO,RU,SM,RS,SK,SI,ES,SE,CH,TR,UA,GB,VA' .
+						',UK' . ',FO,GI,GG,IM,JE' . ',AX,SJ' },
+				'Servers in Europe'
+			),
+		'africa.region' => fetch_zone_part($overrides,
+				{ # minimum_version => $MINIMUM_SKS,
+				# http://en.wikipedia.org/wiki/List_of_sovereign_states_and_dependent_territories_in_Africa
+				# http://en.wikipedia.org/wiki/ISO_3166-2:SD => "SS" for South Sudan
+				  countries => 'DZ,AO,BJ,BW,BF,BI,CM,CV,CF,TD,KM,CI,CD,CG,DJ,EG,GQ,ER,ET,GA,GM,GH,GN,GW,KE,LS' .
+						',LR,LY,MG,MW,ML,MR,MU,MA,MZ,NA,NE,NG,RW,ST,SN,SC,SL,SO,ZA' .
+						',SS' . ',SD,SZ,TZ,TG,TN,UG,ZM,ZW' },
+				'Servers in Africa'
+			),
+		'asia.region' => fetch_zone_part($overrides,
+				{ # minimum_version => $MINIMUM_SKS,
+				# http://en.wikipedia.org/wiki/List_of_sovereign_states_and_dependent_territories_in_Asia
+				# East Timor vs Timor-Leste is confusing, omitted old TP
+				  countries => 'AF,AM,AZ,BH,BD,BT,BN,KH,CN,CY,GE,IN,ID,IR,IQ,IL,JP,JO,KZ,KP,KR,KW,KG,LA,LB ' .
+						',MY,MV,MN,MM,NP,OM,PK,PH,QA,RU,SA,SG,LK,SY,TJ,TH,TL,TR,TM,AE,UZ,VN,YE' .
+						',TW' . ',IO,CX,CC,HK,MO' },
+				'Servers in Asia'
+			),
+		'oceania.region' => fetch_zone_part($overrides,
+				{ # minimum_version => $MINIMUM_SKS,
+				# http://en.wikipedia.org/wiki/List_of_sovereign_states_and_dependent_territories_in_Oceania
+				  countries => 'AU,FJ,KI,MH,FM,NR,NZ,PW,PG,WS,SB,TO,TV,VU' . ',AS,CK,PF,GU,NC,NU,NF,MP,PN,TK,WF' },
+				'Servers in Oceania'
+			),
+
+	};
+	my @subzones = keys %{$fetched->{'subzones'}};
+	foreach my $subzone (@subzones) {
+		next if defined $fetched->{'subzones'}{$subzone};
+		delete $fetched->{'subzones'}{$subzone};
+	}
+
+	add_data_checksum($fetched);
+
+	my $old = read_zone();
+	if (not defined $old) {
+		verbose("No old zonefile, writing new one.");
+		return write_zone($fetched);
+	}
+
+	# Data is collected repeatedly but hasn't necessarily changed between
+	# collections; the server has no persistent local disk store so can't
+	# reliably sanitise this (and we're the ones who care).
+	#
+	# So, if the count of the IP addresses has not changed and the checksum
+	# of the IPs, sorted, has not changed, then we'll assume no change.
+	# There is a statistically remote chance that we'll fail to update.
+	# In case that is ever determined to have happened, we'll provide an
+	# override.
+	my $need_update = 0;
+
+	if (defined $old->{'old_checksum'}) {
+		foreach my $i (0, 1) {
+			if ($old->{'old_checksum'}[$i] ne $fetched->{'checksum'}[$i]) {
+				$need_update += 1;
+			}
+		}
+		verbose('Update triggered by checksum change.') if $need_update;
+	} else {
+		$need_update += 1;
+	}
+	if (defined $old->{'old_count'}) {
+		my $oc = 0 + $old->{'old_count'};
+		if ($oc != $fetched->{'count'}) {
+			$need_update += 1;
+			verbose('Update triggered by IP count change.');
+		}
+	} else {
+		$need_update += 1;
+	}
+
+	if ($FORCE_WRITE_ZONE) {
+		unless ($need_update) {
+			verbose('Only updating because --force in effect.');
+		}
+		$need_update += 10 if $FORCE_WRITE_ZONE;
+	}
+	unless ($need_update) {
+		verbose('No update needed.');
+		return $EXIT_SUCCESS_NOUPDATE ? 0 : 1;
+	}
+	verbose("Updating zone [$ZONE_ORIGIN] in [$DEST_FILE].");
+	return write_zone($fetched, $old);
+}
+
+my $man = 0;
+my $help = 0;
+my $new_zonens = [];
+GetOptions(
+	"verbose"		=> \$VERBOSE,
+	"nochange-exit-success"	=> \$EXIT_SUCCESS_NOUPDATE,
+	"output=s"		=> \$DEST_FILE,
+	"zone=s"		=> \$ZONE_ORIGIN,
+	"overrides=s"		=> \$OVERRIDES_FILE,
+	"force"			=> \$FORCE_WRITE_ZONE,
+	"ttl=i"			=> \$ZONE_TTL,
+	"admin=s"		=> \$ZONE_ADMIN,
+	"srv!"			=> \$GENERATE_SRV,
+	"keep-6to4!"		=> \$KEEP_6TO4,
+	"nameservers=s@"	=> \$new_zonens,
+	"minimum-sks=s"		=> \$MINIMUM_SKS,
+	"help|?"		=> \$help,
+	"man"			=> \$man,
+) or pod2usage(2);
+pod2usage(1) if $help;
+pod2usage(-existstatus => 0, -verbose => 2) if $man;
+
+if (scalar @$new_zonens) {
+	@ZONE_NS = split(/[\s,]+/, join(',', @$new_zonens));
+}
+
+exit update_zone();
+
+__END__
+=head1 NAME
+
+update_sks_zone - Generate SKS zonefile from server-collected data
+
+=head1 SYNOPSIS
+
+update_sks_zone [options]
+
+=head1 OPTIONS
+
+=over
+
+=item B<--verbose>
+
+Be very slightly less silent.
+
+=item B<--nochange-exit-success>
+
+If new data can not be retrieved or if there was no change, then exit success
+even though we've taken no action.  Note that we'll still exit with a non-zero
+status if there was a local problem such as being unable to update the zonefile.
+
+=item B<--output> I<filename>
+
+Filename to write results to.
+
+=item B<--zone> I<zonename>
+
+Zone name to specify in zone-file (via $ORIGIN)
+
+=item B<--overrides> I<filename>
+
+File containing JSON data, top-level dict with key 'sks'.
+At present, only a sub-key 'pool_exclude' is handled.
+
+=item B<--force>
+
+Write the zone-file, even if there's too little data or the new data appears
+to match the old data.
+
+Note that changes to command-line flags setting metadata, such as nameservers,
+zone or admin, will not normally count as "changes", only changes to the IPs
+involved count.  So you will probably need B<--force> to make such a change the
+first time.
+
+=item B<--ttl> I<zone_ttl_integer>
+
+Zone TTL, integer; time multipliers not supported.
+
+=item B<--admin> I<zone_admin>
+
+The zone admin, specifed in DNS form (no '@' please).
+
+=item B<--no-srv>
+
+Do not generate SRV records.
+
+=item B<--keep-6to4>
+
+Do not filter out 6to4 addresses.
+
+=item B<--nameservers>  I<list_of_zone_nameservers>
+
+List of nameservers to use for the zone.  May be specified multiple times and
+the results accumulate and the final data is split up on whitespace and commas
+to generate the list.
+
+=item B<--minimum-sks> I<version>
+
+The minimum version number to specify to sks-peers/ip-valid for filtering which
+servers to return to us.
+
+=item B<--help> B<--man>
+
+Minor helpfulness.
+
+=back
+
+=head1 DESCRIPTION
+
+Fetch data presumed to have been generated by sks-peers/ip-valid which
+consists of a status address, IP addresses one per line, then a line ".".
+Verify the status results.
+
+Potentially then write these out in a zone-file, with record for C<keys>,
+C<keys.ipv4> and C<keys.ipv6>.  If the zone-file already exists, then the new
+zonefile's SOA serial number will be one higher than that.  No locking of the
+zonefile is done -- if concurrent updates are a concern, the invoker of this
+program needs to take care of that.
+
+The status line from the server gives us a collection time, this is encoded
+in a magic comment in the zonefile, as are some other pieces of data.  If the
+new data's collection time matches the recorded collection time, no change is
+made.
+
+Currently, no attempt is made to avoid writing a zone-file if the keys would
+be the same.
+
+There must be at least five IPs in the list of results or the update will not
+happen.
+
+=head1 SEE ALSO
+
+C<dnssync_update_domains>, C<sks-peers>
+
+=head1 AUTHOR
+
+Phil Pennock.  PGP KeyID 0x3903637F.
+
+=cut
+
