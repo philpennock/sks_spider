@@ -53,6 +53,7 @@ func setupHttpServer(listen string) *http.Server {
 	http.HandleFunc(SERVE_PREFIX+"/ip-valid-stats", apiIpValidStatsPage)
 	http.HandleFunc(SERVE_PREFIX+"/hostnames-json", apiHostnamesJsonPage)
 	http.HandleFunc(SERVE_PREFIX+"/graph-dot", apiGraphDot)
+	http.HandleFunc(SERVE_PREFIX+"/plot/servers-histogram", apiPlotServersHistogram)
 	http.HandleFunc("/helpz", apiHelpz)
 	http.HandleFunc("/scanstatusz", apiScanStatusz)
 	// MISSING: threadz environz rescanz internalz quitz
