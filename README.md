@@ -155,6 +155,21 @@ License
 
 Apache 2.0.
 
+Most people are nice and sane and in a world without subversion and lawyers,
+this next bit wouldn't be necessary.  It's butt-covering, that's all.
+
+If you send me a patch or a pull request, then by default:
+ * I will add you to a CONTRIBUTORS file
+ * You are assumed to be implicitly granting a license to me for your work to
+   be distributed under the same license, as part of a larger work
+ * If you send me code you don't have legal authority to send me (it's not
+   your work, etc) and someone complains and/or sues me as a result of my
+   including it, then I will void any agreements regarding privacy and will
+   state very clearly who set me up -- I see no reason to let myself get in
+   trouble for someone else's misdeeds.
+
+In other words: don't be a jackass, contributions are expected to contribute
+towards the codebase, not take away.  Thanks.
 
 That's about it.  
 -Phil
