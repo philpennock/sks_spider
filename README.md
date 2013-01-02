@@ -5,6 +5,7 @@ Tool to spider the PGP SKS keyserver mesh.
 
 [![Build Status](https://secure.travis-ci.org/syscomet/sks_spider.png?branch=master)](https://travis-ci.org/syscomet/sks\_spider)
 
+
 Overview
 --------
 
@@ -51,6 +52,16 @@ To-Do
   handle while at it, and make it possible to, eg kill an existing scan using
   a random nonce to authenticate, where the nonce has to be retrieved from
   the logfile.
+
+
+Packages
+--------
+
+Scott Grayban provides pre-built binaries for Debian at
+<https://keyserver.borgnet.us/downloads/>.
+I am not able to vouch for these builds, but am grateful to Scott for
+providing them.
+
 
 Building
 --------
@@ -162,14 +173,12 @@ If you send me a patch or a pull request, then by default:
  * I will add you to a CONTRIBUTORS file
  * You are assumed to be implicitly granting a license to me for your work to
    be distributed under the same license, as part of a larger work
- * If you send me code you don't have legal authority to send me (it's not
-   your work, etc) and someone complains and/or sues me as a result of my
-   including it, then I will void any agreements regarding privacy and will
-   state very clearly who set me up -- I see no reason to let myself get in
-   trouble for someone else's misdeeds.
+ * You are assumed to have the authority to submit the modification
+   under these terms and are implicitly testifying to this by making the
+   submission.
 
-In other words: don't be a jackass, contributions are expected to contribute
-towards the codebase, not take away.  Thanks.
+In other words: please don't be a jackass, contributions are expected to
+contribute towards the codebase, not take away.  Thanks.
 
 That's about it.  
 -Phil
