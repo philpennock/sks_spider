@@ -40,3 +40,11 @@ For me, the value of this zone has been two-fold:
 
 Note that point 2 did not require that anyone other than Kristian try using my
 pool.  :)  There's more than one type of competition.
+
+
+`freebsd-rc.d_sks-stats`
+------------------------
+
+This is an `rc.d` script for FreeBSD, used to run the stats daemon.
+It depends upon `sysutils/daemontools` in Ports, for the `setuidgid` command.
+

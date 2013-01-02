@@ -1,0 +1,75 @@
+#!/bin/sh
+#
+# This is an rc.d script for FreeBSD; minimally, if default paths below
+# are acceptable, then /etc/rc.conf just needs:  sks_stats_enable="YES"
+#
+# Depends upon "setuidgid" from Ports sysutils/daemontools
+#
+# Override the "command" setting with "sks_stats_program"
+
+# PROVIDE: sks-stats
+# REQUIRE: DAEMON sks-db
+
+. /etc/rc.subr
+
+name="sks_stats"
+rcvar=`set_rcvar`
+command="/usr/local/sbin/sks_stats_daemon"
+pidfile=/var/run/sks_stats.pid
+start_cmd=sks_stats_start_cmd
+extra_commands="quickrestart"
+quickrestart_cmd=sks_stats_quickrestart
+
+load_rc_config $name
+: ${sks_stats_user="sks"}
+: ${sks_stats_chdir="/var/sks"}
+: ${sks_stats_logfile="/var/log/sks-stats.log"}
+: ${sks_stats_persistfile="/var/sks/stats-persist.json"}
+: ${sks_stats_startedfile="/var/sks/stats.started"}
+
+extra_start_flags=""
+
+as_user()
+{
+	/usr/local/bin/setuidgid $sks_stats_user "$@"
+}
+
+sks_stats__do_chdir()
+{
+	local d="$sks_stats_chdir"
+	[ ".$1" != "." ] && d="$d/$1"
+	cd "$d"
+	if [ $? -ne 0 ]; then
+		warn "Failed to chdir to $d"
+		return 1
+	fi
+}
+
+sks_stats_start_cmd()
+{
+	echo "Starting sks stats daemon."
+	sks_stats__do_chdir || return 1
+	# don't use as_user since daemon invokes it
+	touch "${sks_stats_logfile}"
+	chown ${sks_stats_user} "${sks_stats_logfile}"
+	/usr/sbin/daemon -f -p "$pidfile" \
+		/usr/local/bin/setuidgid $sks_stats_user \
+		$command -log-file "${sks_stats_logfile}" \
+		-json-persist "${sks_stats_persistfile}" \
+		$extra_start_flags $sks_stats_flags
+}
+
+sks_stats_quickrestart()
+{
+	sig_stop=USR1
+	run_rc_command stop
+	extra_start_flags="-started-file=$sks_stats_startedfile"
+	sks_stats_start_cmd
+	while ! [ -f "$sks_stats_startedfile" ]; do
+		sleep 1
+	done
+	rm -f "$sks_stats_startedfile"
+}
+
+required_dirs="${sks_stats_chdir}"
+run_rc_command "$1"
