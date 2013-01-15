@@ -3,7 +3,7 @@ sks\_spider
 
 Tool to spider the PGP SKS keyserver mesh.
 
-[![Build Status](https://secure.travis-ci.org/syscomet/sks_spider.png?branch=master)](https://travis-ci.org/syscomet/sks\_spider)
+[![Build Status](https://api.travis-ci.org/syscomet/sks_spider.png?branch=master)](https://travis-ci.org/syscomet/sks\_spider)
 
 
 Overview

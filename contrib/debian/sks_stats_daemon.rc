@@ -1,0 +1,131 @@
+#!/bin/sh -e
+#
+### BEGIN INIT INFO
+# Provides:          sks_stats_daemon
+# Required-Start:    $remote_fs $syslog $sks
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+### END INIT INFO
+#
+# Start/stops the sks stats daemon.
+#
+# Create /etc/default/sks_stats_daemon and add the line
+# initstart=yes
+# to have it run at startup or use 'no' to disable it
+#
+# To install it as a service type 'update-rc.d sks_stats_daemon defaults'
+#
+
+# Reads config file
+[ -r /etc/default/sks_stats_daemon ] && . /etc/default/sks_stats_daemon
+
+## EDIT these settings to suit your needs ##
+DAEMON=/home/sks/bin/sks_stats_daemon
+SKSPID=/home/sks/sks_stats_daemon.pid
+STARTED=/home/sks/stats.started
+OPTIONS="-hostname=keyserver.borgnet.us -countries-zone=zz.countries.nerd.dk \
+        -stylesheet=/styles/sks-peers.css -maint-email=sgrayban[at]gmail[dot]com \
+        -listen=localhost:8001 -timeout-stats-fetch=10 -scan-interval=10800 \
+        -json-dump=/home/sks/public_html/dump.json -log-file=/home/sks/logs/sksdaemon.log \
+        -sks-membership-file=/home/sks/etc/membership -started-file=/home/sks/stats.started"
+
+## DON'T EDIT BELOW THIS LINE !!! ##
+
+# See if the daemon is there
+
+test -e $DAEMON || exit 0
+
+if [ ! -x $DAEMON ]; then
+    echo "ERROR: $DAEMON is not executable"
+    exit 1
+fi
+
+wait_for_deaddaemon () {
+        pidfile=$1
+        pid=`cat $pidfile 2>/dev/null` || true
+        sleep 1
+        if test -n "$pid"
+        then
+                if kill -0 $pid 2>/dev/null
+                then
+                        echo -n "."
+                        cnt=0
+                        while kill -0 $pid 2>/dev/null
+                        do
+                                cnt=`expr $cnt + 1`
+                                if [ $cnt -gt 30 ]
+                                then
+                                        echo " FAILED."
+                                        return 1
+                                fi
+                                sleep 2
+                                echo -n "."
+                        done
+                        rm -f $pidfile
+                else
+                        rm -f $pidfile
+                fi
+        fi
+        return 0
+}
+
+
+case "$1" in
+    start)
+        echo -n "Starting sks_stats_daemon:"
+
+        if [ "$initstart" != "yes" ]; then
+            echo " Not starting sks_stats_daemon (as configured in /etc/default/sks_stats_daemon)"
+            exit 0
+        fi
+
+        mkdir -p `dirname "$SKSPID"`
+        chown sks `dirname "$SKSPID"`
+
+        echo -n " sks_stats_daemon.."
+
+        start-stop-daemon --start --quiet --oknodo \
+                          --chuid sks:sks \
+                          --make-pidfile \
+                          --pidfile $SKSPID \
+                          --exec $DAEMON -- $OPTIONS &
+
+        echo " done."
+
+    ;;
+    stop)
+        echo -n "Stopping sks_stats_daemon:"
+
+        echo -n " sks_stats_daemon.."
+        start-stop-daemon --stop --quiet --oknodo --pidfile $SKSPID
+        wait_for_deaddaemon $SKSPID || exit 1
+        rm -f $STARTED
+
+        echo " done."
+
+    ;;
+    reload)
+        # Hupping at least reopens logfiles.
+        # membership and mailsync are regularily read anyway
+        # not sure about the rest
+        #    -- weasel
+        echo -n "Reloading sks_stats_daemon:"
+        echo -n " sks_stats_daemon.."
+        start-stop-daemon --stop --signal 1 --quiet --oknodo --pidfile $SKSPID
+
+        echo " done."
+    ;;
+    restart|force-reload)
+        $0 stop
+        sleep 1
+        $0 start
+    ;;
+    *)
+        echo "Usage: $0 {start|stop|reload|restart|force-reload}"
+        exit 1
+    ;;
+esac
+
+exit 0
+# vim: set ft=sh sw=4 et :
