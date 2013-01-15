@@ -99,6 +99,12 @@ func apiPeersPage(w http.ResponseWriter, req *http.Request) {
 	namespace := genNamespace()
 	namespace["Scanning_active"] = ""
 
+	// IsZero will hold if persisted loaded from JSON which predates change
+	// that adds the timestamp.
+	if persisted != nil && !persisted.Timestamp.IsZero() {
+		namespace["LastScanTime"] = persisted.Timestamp.UTC().Format("20060102_150405") + "Z"
+	}
+
 	namespace["Mesh_count"] = len(display_order)
 	if len(display_order) > 0 {
 		pc := 0

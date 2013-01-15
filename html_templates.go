@@ -75,6 +75,7 @@ func prepareTemplates() {
 	kPAGE_TEMPLATE_FOOT := `
    <caption>SKS has {{.Peer_count}} peers of {{.Mesh_count}} visible</caption>
   </table>
+  <div class="lastupdate">Last scan completed at: {{.LastScanTime}}</div>
  </body>
 </html>
 `

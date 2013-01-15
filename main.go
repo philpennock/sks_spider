@@ -86,6 +86,7 @@ type PersistedHostInfo struct {
 	Sorted       []string
 	DepthSorted  []string
 	Graph        *HostGraph
+	Timestamp    time.Time
 }
 
 var (
@@ -118,6 +119,7 @@ func GetCurrentHostlist() []string {
 }
 
 func SetCurrentPersisted(p *PersistedHostInfo) {
+	p.Timestamp = time.Now()
 	p.LogInformation()
 	currentHostMapLock.Lock()
 	defer currentHostMapLock.Unlock()
@@ -157,10 +159,18 @@ func respiderPeriodically() {
 		Log.Printf("Sleeping %s before next respider", delay)
 		time.Sleep(delay)
 		Log.Printf("Awoken!  Time to spider.")
-		spider := StartSpider()
-		spider.AddHost(*flSpiderStartHost, 0)
-		spider.Wait()
-		spider.Terminate()
+		var spider *Spider
+		func() {
+			spider = StartSpider()
+			defer func(sp *Spider) {
+				if r := recover(); r != nil {
+					Log.Printf("Spider paniced: %s", r)
+				}
+				sp.Terminate()
+			}(spider)
+			spider.AddHost(*flSpiderStartHost, 0)
+			spider.Wait()
+		}()
 		normaliseMeshAndSet(spider, false)
 	}
 }
