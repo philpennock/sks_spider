@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // "go-html-transform" -- crashes parsing SKS output
@@ -109,6 +110,27 @@ func (sn *SksNode) Minimize() {
 	}
 }
 
+type httpFetchResults struct {
+	resp *http.Response
+	err  error
+}
+
+func HttpDoWithTimeout(c *http.Client, req *http.Request, timeout time.Duration) (*http.Response, error) {
+	results := make(chan httpFetchResults, 1)
+	go func() {
+		resp1, err1 := c.Do(req)
+		results <- httpFetchResults{resp1, err1}
+	}()
+	timeoutTrigger := time.After(timeout)
+	select {
+	case result := <-results:
+		return result.resp, result.err
+	case <-timeoutTrigger:
+		return nil, fmt.Errorf("HTTP Do() timed out after %s", timeout)
+	}
+	panic("not reached")
+}
+
 func (sn *SksNode) Fetch() error {
 	sn.Normalize()
 	req, err := http.NewRequest("GET", sn.uri, nil)
@@ -116,10 +138,11 @@ func (sn *SksNode) Fetch() error {
 		return err
 	}
 	req.Header.Set("User-Agent", "sks_peers/0.2 (SKS mesh spidering)")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := HttpDoWithTimeout(http.DefaultClient, req, *flHttpFetchTimeout)
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	sn.Status = resp.Status
 	Log.Printf("[%s] Response status: %s", sn.Hostname, sn.Status)
 	sn.ServerHeader = resp.Header.Get("Server")
