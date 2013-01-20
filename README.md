@@ -183,3 +183,5 @@ contribute towards the codebase, not take away.  Thanks.
 
 That's about it.  
 -Phil
+
+Copyright 2012,2013 Phil Pennock.
