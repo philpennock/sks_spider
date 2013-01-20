@@ -130,6 +130,7 @@ func normaliseMeshAndSet(spider *Spider, dumpJson bool) {
 	go func(s *Spider) {
 		persisted := GeneratePersistedInformation(s)
 		SetCurrentPersisted(persisted)
+		persisted.UpdateStatsCounters(spider)
 		runtime.GC()
 		if dumpJson && *flJsonDump != "" {
 			Log.Printf("Saving JSON to \"%s\"", *flJsonDump)

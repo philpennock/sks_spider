@@ -18,9 +18,11 @@ package sks_spider
 
 import (
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"html/template"
 	"net/http"
+	_ "net/http/pprof"
 	"strings"
 	"time"
 )
@@ -37,6 +39,24 @@ const (
 	ContentTypeTextPlain = "text/plain; charset=UTF-8"
 	ContentTypeJson      = "application/json"
 )
+
+var (
+	statsCollectionTimestamp  *expvar.Int
+	statsServersTotal         *expvar.Int
+	statsServersHostnamesSeen *expvar.Int
+	statsServersHaveData      *expvar.Int
+	statsServersBadDNS        *expvar.Int
+	statsServersBadData       *expvar.Int
+)
+
+func init() {
+	statsCollectionTimestamp = expvar.NewInt("collection.timestamp.activated")
+	statsServersTotal = expvar.NewInt("collection.servers.total")
+	statsServersHostnamesSeen = expvar.NewInt("collection.servers.hostnamesseen")
+	statsServersHaveData = expvar.NewInt("collection.servers.havedata")
+	statsServersBadDNS = expvar.NewInt("collection.servers.baddns")
+	statsServersBadData = expvar.NewInt("collection.servers.baddata")
+}
 
 func setupHttpServer(listen string) *http.Server {
 	s := &http.Server{
@@ -55,7 +75,9 @@ func setupHttpServer(listen string) *http.Server {
 	http.HandleFunc(SERVE_PREFIX+"/graph-dot", apiGraphDot)
 	http.HandleFunc("/helpz", apiHelpz)
 	http.HandleFunc("/scanstatusz", apiScanStatusz)
-	// MISSING: threadz environz rescanz internalz quitz
+	// net/http/pprof provides /debug/pprof with threads and profiling information
+	// expvar provides /debug/vars (JSON)
+	// MISSING: environz rescanz (internalz) quitz
 	// leave quitz out?
 	http.HandleFunc("/", apiOops)
 	return s

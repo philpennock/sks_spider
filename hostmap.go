@@ -160,3 +160,19 @@ func (p *PersistedHostInfo) LogInformation() {
 		len(p.HostMap), len(p.AliasMap), len(p.IPCountryMap),
 		len(p.Sorted), len(p.DepthSorted), p.Graph.Len())
 }
+
+func (p *PersistedHostInfo) UpdateStatsCounters(spider *Spider) {
+	statsCollectionTimestamp.Set(p.Timestamp.Unix())
+	var countOkayAndBad = int64(len(p.HostMap))
+	var countBadData int64 = 0
+	for hostname := range p.HostMap {
+		if p.HostMap[hostname].AnalyzeError != "" {
+			countBadData++
+		}
+	}
+	statsServersHaveData.Set(countOkayAndBad - countBadData)
+	statsServersBadData.Set(countBadData)
+	statsServersBadDNS.Set(int64(len(spider.badDNS)))
+	statsServersTotal.Set(int64(len(p.HostMap)))
+	statsServersHostnamesSeen.Set(int64(len(spider.considering)))
+}
