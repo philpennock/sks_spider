@@ -30,9 +30,8 @@ import (
 const SERVE_PREFIX = "/sks-peers"
 
 const (
-	kHTML_CSS_STYLESHEET = "/style/spodhuis-sks.css"
-	kHTML_FAVICON        = "/favicon.ico"
-	kBUCKET_SIZE         = 3000
+	kHTML_FAVICON = "/favicon.ico"
+	kBUCKET_SIZE  = 3000
 )
 
 const (

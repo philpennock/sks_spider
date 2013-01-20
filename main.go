@@ -34,6 +34,7 @@ var (
 	flListen             = flag.String("listen", "localhost:8001", "port to listen on with web-server")
 	flMaintEmail         = flag.String("maint-email", "webmaster@spodhuis.org", "Email address of local maintainer")
 	flHostname           = flag.String("hostname", "sks.spodhuis.org", "Hostname to use in generated pages")
+	flMyStylesheet       = flag.String("stylesheet", "/styles/sks-peers.css", "CSS Style sheet to use")
 	flSksMembershipFile  = flag.String("sks-membership-file", "/var/sks/membership", "SKS Membership file")
 	flSksPortRecon       = flag.Int("sks-port-recon", 11370, "Default SKS recon port")
 	flSksPortHkp         = flag.Int("sks-port-hkp", 11371, "Default SKS HKP port")
