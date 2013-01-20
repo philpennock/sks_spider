@@ -161,6 +161,10 @@ It's as simple as:
 In fact, you don't even need the X-Real-IP pass-through, but set it up now
 and it'll be easier to deal with a future change which logs the origin IP.
 
+Note especially that, as suggested in the Overview above, we're only passing
+through the `/sks-peers` part of the namespace; this avoids exposing the
+`/debug` hierarchy, amongst others.
+
 
 License
 -------
