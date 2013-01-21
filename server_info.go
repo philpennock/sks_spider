@@ -110,16 +110,15 @@ func (sn *SksNode) Minimize() {
 	}
 }
 
-type httpFetchResults struct {
-	resp *http.Response
-	err  error
-}
-
 func HttpDoWithTimeout(c *http.Client, req *http.Request, timeout time.Duration) (*http.Response, error) {
-	results := make(chan httpFetchResults, 1)
+	type resultPair struct {
+		resp *http.Response
+		err  error
+	}
+	results := make(chan resultPair, 1)
 	go func() {
 		resp1, err1 := c.Do(req)
-		results <- httpFetchResults{resp1, err1}
+		results <- resultPair{resp1, err1}
 	}()
 	timeoutTrigger := time.After(timeout)
 	select {
