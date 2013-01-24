@@ -93,18 +93,18 @@ type PersistedHostInfo struct {
 
 var (
 	currentHostInfo    *PersistedHostInfo
-	currentHostMapLock sync.Mutex
+	currentHostMapLock sync.RWMutex
 )
 
 func GetCurrentPersisted() *PersistedHostInfo {
-	currentHostMapLock.Lock()
-	defer currentHostMapLock.Unlock()
+	currentHostMapLock.RLock()
+	defer currentHostMapLock.RUnlock()
 	return currentHostInfo
 }
 
 func GetCurrentHosts() HostMap {
-	currentHostMapLock.Lock()
-	defer currentHostMapLock.Unlock()
+	currentHostMapLock.RLock()
+	defer currentHostMapLock.RUnlock()
 	if currentHostInfo == nil {
 		return nil
 	}
@@ -112,8 +112,8 @@ func GetCurrentHosts() HostMap {
 }
 
 func GetCurrentHostlist() []string {
-	currentHostMapLock.Lock()
-	defer currentHostMapLock.Unlock()
+	currentHostMapLock.RLock()
+	defer currentHostMapLock.RUnlock()
 	if currentHostInfo == nil {
 		return nil
 	}

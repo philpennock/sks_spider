@@ -30,9 +30,9 @@ var diagnosticSpiderDummy bool
 var diagnosticSpiderDummyLock sync.Mutex
 
 func init() {
-	diagnosticSpiderDump = make(chan io.Writer, 10)
-	diagnosticSpiderDone = make(chan bool, 10)
-	diagnosticSpiderKill = make(chan bool, 1)
+	diagnosticSpiderDump = make(chan io.Writer)
+	diagnosticSpiderDone = make(chan bool)
+	diagnosticSpiderKill = make(chan bool)
 }
 
 func SpiderDiagnostics(out io.Writer) {
@@ -40,6 +40,7 @@ func SpiderDiagnostics(out io.Writer) {
 	<-diagnosticSpiderDone
 }
 
+// spiderMainLoop(), which calls us, will signal on diagnosticSpiderDone when done
 func (spider *Spider) diagnosticDumpInRoutine(out io.Writer) {
 	fmt.Fprintf(out, "BatchAddHost: %d / %d\n", len(spider.batchAddHost), cap(spider.batchAddHost))
 	fmt.Fprintf(out, "Waitgroup: %#+v\n", spider.pending)
@@ -88,6 +89,9 @@ func DummySpiderForDiagnosticsChannel() {
 		case <-diagnosticSpiderDump:
 			diagnosticSpiderDone <- true
 		case <-diagnosticSpiderKill:
+			diagnosticSpiderDummyLock.Lock()
+			defer diagnosticSpiderDummyLock.Unlock()
+			diagnosticSpiderDummy = false
 			return
 		}
 	}

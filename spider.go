@@ -99,7 +99,7 @@ func StartSpider() *Spider {
 	spider.pendingCountries = make(map[string]int)
 	spider.distances = make(map[string]int)
 	spider.countriesForIPs = make(map[string]string)
-	spider.terminate = make(chan bool, 1)
+	spider.terminate = make(chan bool)
 
 	KillDummySpiderForDiagnosticsChannel()
 	go spiderMainLoop(spider)
