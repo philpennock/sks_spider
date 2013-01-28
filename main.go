@@ -255,7 +255,7 @@ func Main() {
 		spider.AddHost(*flSpiderStartHost, 0)
 		spider.Wait()
 		spider.Terminate()
-		Log.Printf("Spidering complete")
+		Log.Printf("Start-up initial spidering complete")
 		normaliseMeshAndSet(spider, true)
 		go respiderPeriodically()
 		doneRespider = true
