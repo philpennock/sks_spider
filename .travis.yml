@@ -5,6 +5,7 @@ install:
  - BTREE_DIR="github.com/runningwild/go-btree"
  - GOTGO_DIR="github.com/droundy/gotgo/gotgo"
  - CHECKOUT_TOP="${GOPATH%%:*}/src"
+ - "if [ -d \"$CHECKOUT_TOP/syscomet\" ] && ! [ -d \"$CHECKOUT_TOP/github.com/syscomet\" ]; then mkdir -pv \"$CHECKOUT_TOP/github.com\" && ln -s ../syscomet \"$CHECKOUT_TOP/github.com/syscomet\"; fi"
  - go get -fix -d -v "$BTREE_DIR"
  - "( cd \"$CHECKOUT_TOP/$BTREE_DIR\" && rm bench.go test.go )"
  - go get -d "$GOTGO_DIR"
