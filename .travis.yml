@@ -1,11 +1,17 @@
 language: go
 
+# Travis moved checkouts to be outside ${GOPATH%%:*}
+#
+# nb: the -v option to mkdir is not in SUSv4, but is portable enough
+
 install:
+ - repo_dir=$(/bin/pwd -P)
+ - spider_parent="github.com/syscomet"
  - SPIDER_DIR="github.com/syscomet/sks_spider"
  - BTREE_DIR="github.com/runningwild/go-btree"
  - GOTGO_DIR="github.com/droundy/gotgo/gotgo"
  - CHECKOUT_TOP="${GOPATH%%:*}/src"
- - "if [ -d \"$CHECKOUT_TOP/syscomet\" ] && ! [ -d \"$CHECKOUT_TOP/github.com/syscomet\" ]; then mkdir -pv \"$CHECKOUT_TOP/github.com\" && ln -s ../syscomet \"$CHECKOUT_TOP/github.com/syscomet\"; fi"
+ - "if ! [ -d \"$CHECKOUT_TOP/$spider_parent\" ]; then mkdir -pv \"$CHECKOUT_TOP/$spider_parent\" && ln -s \"$repo_dir\" \"$CHECKOUT_TOP/$SPIDER_DIR\"; fi"
  - go get -fix -d -v "$BTREE_DIR"
  - "( cd \"$CHECKOUT_TOP/$BTREE_DIR\" && rm bench.go test.go )"
  - go get -d "$GOTGO_DIR"
