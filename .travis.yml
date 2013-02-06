@@ -5,6 +5,7 @@ language: go
 # nb: the -v option to mkdir is not in SUSv4, but is portable enough
 
 install:
+ - go version
  - repo_dir=$(/bin/pwd -P)
  - spider_parent="github.com/syscomet"
  - SPIDER_DIR="github.com/syscomet/sks_spider"
