@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
+	"sync"
 )
 
 // "go-html-transform" -- crashes parsing SKS output
@@ -59,6 +59,21 @@ type SksNode struct {
 	IpList       []string
 	Aliases      []string
 	Distance     int
+}
+
+var initHTTPOnce sync.Once
+var ourTransport *http.Transport
+var ourHTTPClient *http.Client
+
+func getHTTPClient() *http.Client {
+	initHTTPOnce.Do(func() {
+		ourTransport = &http.Transport{
+			DisableKeepAlives:     true,
+			ResponseHeaderTimeout: *flHttpFetchTimeout,
+		}
+		ourHTTPClient = &http.Client{Transport: ourTransport}
+	})
+	return ourHTTPClient
 }
 
 func (sn *SksNode) Dump(out io.Writer) {
@@ -110,26 +125,6 @@ func (sn *SksNode) Minimize() {
 	}
 }
 
-func HttpDoWithTimeout(c *http.Client, req *http.Request, timeout time.Duration) (*http.Response, error) {
-	type resultPair struct {
-		resp *http.Response
-		err  error
-	}
-	results := make(chan resultPair, 1)
-	go func() {
-		resp1, err1 := c.Do(req)
-		results <- resultPair{resp1, err1}
-	}()
-	timeoutTrigger := time.After(timeout)
-	select {
-	case result := <-results:
-		return result.resp, result.err
-	case <-timeoutTrigger:
-		return nil, fmt.Errorf("HTTP Do() timed out after %s", timeout)
-	}
-	panic("not reached")
-}
-
 func (sn *SksNode) Fetch() error {
 	sn.Normalize()
 	req, err := http.NewRequest("GET", sn.uri, nil)
@@ -137,7 +132,8 @@ func (sn *SksNode) Fetch() error {
 		return err
 	}
 	req.Header.Set("User-Agent", "sks_peers/0.2 (SKS mesh spidering)")
-	resp, err := HttpDoWithTimeout(http.DefaultClient, req, *flHttpFetchTimeout)
+	cl := getHTTPClient()
+	resp, err := cl.Do(req)
 	if err != nil {
 		return err
 	}

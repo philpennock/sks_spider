@@ -169,7 +169,7 @@ func spiderMainLoop(spider *Spider) {
 			spider.diagnosticDumpInRoutine(out)
 			diagnosticSpiderDone <- true
 		case <-spider.terminate:
-			break
+			return
 		}
 	}
 }
