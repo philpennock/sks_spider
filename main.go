@@ -41,7 +41,7 @@ var (
 	flTimeoutStatsFetch  = flag.Int("timeout-stats-fetch", 30, "Timeout for fetching stats from a remote server")
 	flCountriesZone      = flag.String("countries-zone", "zz.countries.nerd.dk.", "DNS zone for determining IP locations")
 	flKeysSanityMin      = flag.Int("keys-sanity-min", 3100000, "Minimum number of keys that's sane, or we're broken")
-	flKeysDailyJitter    = flag.Int("keys-daily-jitter", 500, "Max daily jitter in key count")
+	flKeysDailyJitter    = flag.Int("keys-daily-jitter", 800, "Max daily jitter in key count")
 	flScanIntervalSecs   = flag.Int("scan-interval", 3600*8, "How often to trigger a scan")
 	flScanIntervalJitter = flag.Int("scan-interval-jitter", 120, "Jitter in scan interval")
 	flLogFile            = flag.String("log-file", "sksdaemon.log", "Where to write logfiles")
