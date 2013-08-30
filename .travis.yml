@@ -7,8 +7,8 @@ language: go
 install:
  - go version
  - repo_dir=$(/bin/pwd -P)
- - spider_parent="github.com/syscomet"
- - SPIDER_DIR="github.com/syscomet/sks_spider"
+ - spider_parent="github.com/philpennock"
+ - SPIDER_DIR="github.com/philpennock/sks_spider"
  - BTREE_DIR="github.com/runningwild/go-btree"
  - GOTGO_DIR="github.com/droundy/gotgo/gotgo"
  - CHECKOUT_TOP="${GOPATH%%:*}/src"

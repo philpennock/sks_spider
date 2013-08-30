@@ -3,7 +3,7 @@ sks\_spider
 
 Tool to spider the PGP SKS keyserver mesh.
 
-[![Build Status](https://api.travis-ci.org/syscomet/sks_spider.png?branch=master)](https://travis-ci.org/syscomet/sks\_spider)
+[![Build Status](https://api.travis-ci.org/philpennock/sks_spider.png?branch=master)](https://travis-ci.org/philpennock/sks\_spider)
 
 
 Overview
@@ -87,11 +87,11 @@ library in passing and didn't investigate fully.
 
 After that, the btree import will work and the code should build with:
 
-    go build github.com/syscomet/sks_spider/sks_stats_daemon.go
+    go build github.com/philpennock/sks_spider/sks_stats_daemon.go
 
 If you encounter problems, look at the `.travis.yml` file which is used
 for running the Travis Continuous Integration tests:
-<https://travis-ci.org/syscomet/sks_spider>.
+<https://travis-ci.org/philpennock/sks_spider>.
 That assumes some other prep steps run automatically by Travis, but the test
 log should show everything in context.
 
