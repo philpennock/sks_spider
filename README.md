@@ -69,15 +69,20 @@ Building
 
 For the most part, `go get` should just work.
 
-The exception is the btree support from https://github.com/runningwild/go-btree
-which is very nice, and written using generics, with the `gotgo`
-pre-processor needed to emit a .go file.
+The exception is the btree support from which is very nice, and written
+using generics, with the `gotgo` pre-processor needed to emit a .go file.
+
+The btree code is originally from <https://github.com/runningwild/go-btree>
+but, at time of writing, that has not been updated since before Go 1.0 was
+released and as of Go 1.1, the `go fix` tool will not handle the changes
+needed, so the code has been imported into a dependencies repository,
+<https://github.com/philpennnock/sks-deps>
 
 Grab https://github.com/droundy/gotgo and put some go1 `// +build ignore`
 magic into a couple of the benchmark files, and you'll be able to build
 the `gotgo` and `gotimports` commands.
 
-In the `go-btree` directory, run:
+In the `sks-deps/btree` directory, run:
 
     gotgo -o btree.go btree.got string
 

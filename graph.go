@@ -21,10 +21,10 @@ import (
 )
 
 import (
-	btree "github.com/runningwild/go-btree"
+	btree "github.com/philpennock/sks-deps/btree"
 	// gotgo
 	// in-dir: gotgo -o btree.go btree.got string
-	// top: go install github.com/runningwild/go-btree
+	// top: go install github.com/philpennock/sks-deps/btree
 )
 
 // This is not memory efficient but for this few hosts, does not need to be

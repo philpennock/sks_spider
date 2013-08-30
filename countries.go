@@ -25,7 +25,7 @@ import (
 )
 
 import (
-	btree "github.com/runningwild/go-btree"
+	btree "github.com/philpennock/sks-deps/btree"
 )
 
 const hexDigit = "0123456789abcdef"

@@ -4,17 +4,19 @@ language: go
 #
 # nb: the -v option to mkdir is not in SUSv4, but is portable enough
 
+go: 1.1
+
 install:
  - go version
  - repo_dir=$(/bin/pwd -P)
  - spider_parent="github.com/philpennock"
- - SPIDER_DIR="github.com/philpennock/sks_spider"
- - BTREE_DIR="github.com/runningwild/go-btree"
+ - SPIDER_DIR="${spider_parent}/sks_spider"
+ - DEPS_DIR="${spider_parent}/sks-deps"
+ - BTREE_DIR="${DEPS_DIR}/btree"
  - GOTGO_DIR="github.com/droundy/gotgo/gotgo"
  - CHECKOUT_TOP="${GOPATH%%:*}/src"
  - "if ! [ -d \"$CHECKOUT_TOP/$spider_parent\" ]; then mkdir -pv \"$CHECKOUT_TOP/$spider_parent\" && ln -s \"$repo_dir\" \"$CHECKOUT_TOP/$SPIDER_DIR\"; fi"
- - go get -fix -d -v "$BTREE_DIR"
- - "( cd \"$CHECKOUT_TOP/$BTREE_DIR\" && rm bench.go test.go )"
+ - go get -d "$DEPS_DIR"
  - go get -d "$GOTGO_DIR"
  - go build -v "$GOTGO_DIR"
  - ./gotgo -o "$CHECKOUT_TOP/$BTREE_DIR/btree.go" "$CHECKOUT_TOP/$BTREE_DIR/btree.got" string

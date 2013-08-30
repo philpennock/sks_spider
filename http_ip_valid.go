@@ -28,7 +28,7 @@ import (
 )
 
 import (
-	btree "github.com/runningwild/go-btree"
+	btree "github.com/philpennock/sks-deps/btree"
 )
 
 func apiIpValidPage(w http.ResponseWriter, req *http.Request) {
