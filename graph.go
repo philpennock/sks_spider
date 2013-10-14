@@ -181,5 +181,4 @@ func (hg *HostGraph) LabelMutualWithBase(name string) string {
 	default:
 		return "No"
 	}
-	panic("not reached")
 }
