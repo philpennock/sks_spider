@@ -129,7 +129,7 @@ func prepareTemplates() {
    <tr><td>Proxy / via</td><td>{{.Via_info}}</td></tr>
    <tr><td>Key count</td><td>{{.Keycount}}</td></tr>
 {{if .Mailsync_count}}
-   <tr><td rowspan=".Mailsync_count">Mailsync</td>{{$need_tr := false}}
+   <tr><td rowspan="{{.Mailsync_count}}">Mailsync</td>{{$need_tr := false}}
 {{range .Mailsync}}
   {{if $need_tr}}</tr>
   <tr>{{end}}<td>{{.}}</td></tr>{{$need_tr := true}}

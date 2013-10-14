@@ -122,11 +122,19 @@ func (hg *HostGraph) AllPeersOf(name string) []string {
 		return []string{}
 	}
 	allPeers := btree.NewTree(btreeHostLess)
-	for out := range hg.outbound[canonName].Data() {
-		allPeers.Insert(out)
+	if _, ok := hg.outbound[canonName]; ok {
+		for out := range hg.outbound[canonName].Data() {
+			allPeers.Insert(out)
+		}
+	} else {
+		Log.Printf("Warning: missing hostgraph outbound for %q", canonName)
 	}
-	for in := range hg.inbound[canonName].Data() {
-		allPeers.Insert(in)
+	if _, ok := hg.inbound[canonName]; ok {
+		for in := range hg.inbound[canonName].Data() {
+			allPeers.Insert(in)
+		}
+	} else {
+		Log.Printf("Warning: missing hostgraph inbound for %q", canonName)
 	}
 	sortedList := make([]string, allPeers.Len())
 	i := 0
