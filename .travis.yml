@@ -19,7 +19,7 @@ install:
  - go get -d "$DEPS_DIR"
  - go get -d "$GOTGO_DIR"
  - go build -v "$GOTGO_DIR"
- - ./gotgo -o "$CHECKOUT_TOP/$BTREE_DIR/btree.go" "$CHECKOUT_TOP/$BTREE_DIR/btree.got" string
+ - ./gotgo -o "$CHECKOUT_TOP/$BTREE_DIR/btree.go" -package-name btree "$CHECKOUT_TOP/$BTREE_DIR/btree.got" string
  - go get -d -v
  - go build -v sks_stats_daemon.go
  - go test -i
