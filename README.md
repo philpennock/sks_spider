@@ -5,6 +5,16 @@ Tool to spider the PGP SKS keyserver mesh.
 
 [![Build Status](https://api.travis-ci.org/philpennock/sks_spider.png?branch=master)](https://travis-ci.org/philpennock/sks\_spider)
 
+**Unlikely to build on current Golang**
+
+This code-base is horrible; it was predominantly written in a weekend, porting
+from some very organic Python.  At a bare minimum, this needs to be updated
+to not depend upon `gotgo` but instead to use `go:generate` and manage the
+btree-of-strings accordingly.  The `sks-deps` dependency should be nuked.
+
+Generally, need some basic upkeep.  As-is, this codebase has rotted to
+inedible.  **Beware!**
+
 
 Overview
 --------
