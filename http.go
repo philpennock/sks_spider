@@ -166,7 +166,7 @@ func apiPeersPage(w http.ResponseWriter, req *http.Request) {
 
 		if node.AnalyzeError != "" {
 			attributes["Error"] = node.AnalyzeError
-			serveTemplates["hosterr"].Execute(w, namespace)
+			serveTemplates["hosterr"].Execute(w, attributes)
 			continue
 		}
 
