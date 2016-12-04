@@ -5,15 +5,9 @@ Tool to spider the PGP SKS keyserver mesh.
 
 [![Build Status](https://api.travis-ci.org/philpennock/sks_spider.png?branch=master)](https://travis-ci.org/philpennock/sks\_spider)
 
-**Unlikely to build on current Golang**
-
 This code-base is horrible; it was predominantly written in a weekend, porting
-from some very organic Python.  At a bare minimum, this needs to be updated
-to not depend upon `gotgo` but instead to use `go:generate` and manage the
-btree-of-strings accordingly.  The `sks-deps` dependency should be nuked.
-
-Generally, need some basic upkeep.  As-is, this codebase has rotted to
-inedible.  **Beware!**
+from some very organic Python.  Do not use this as an example of how to do
+things in Golang.
 
 
 Overview
@@ -77,32 +71,18 @@ Scott for providing them.
 Building
 --------
 
-For the most part, `go get` should just work.
+To fetch the code, all dependencies, updating them, and install the command,
+then run:
 
-The exception is the btree support from which is very nice, and written
-using generics, with the `gotgo` pre-processor needed to emit a .go file.
+    mkdir ~/go
+    export GOPATH=~/go
 
-The btree code is originally from <https://github.com/runningwild/go-btree>
-but, at time of writing, that has not been updated since before Go 1.0 was
-released and as of Go 1.1, the `go fix` tool will not handle the changes
-needed, so the code has been imported into a dependencies repository,
-<https://github.com/philpennnock/sks-deps>
+    go get -d -u -v github.com/philpennock/sks_spider/...
+    make
 
-Grab https://github.com/droundy/gotgo and put some go1 `// +build ignore`
-magic into a couple of the benchmark files, and you'll be able to build
-the `gotgo` and `gotimports` commands.
-
-In the `sks-deps/btree` directory, run:
-
-    gotgo -o btree.go btree.got string
-
-There's probably a better way to sort out a namespace hierarchy which don't
-expect only one instantiation of the generic, but I was grabbing a btree
-library in passing and didn't investigate fully.
-
-After that, the btree import will work and the code should build with:
-
-    go build github.com/philpennock/sks_spider/sks_stats_daemon.go
+You don't _have_ to use `make`, but it does embed a version string into the
+binary which can be operationally useful.  Note that GNU make should be used
+(or any other make implementation which handles `GNUmakefile` adequately).
 
 If you encounter problems, look at the `.travis.yml` file which is used
 for running the Travis Continuous Integration tests:
@@ -203,4 +183,4 @@ contribute towards the codebase, not take away.  Thanks.
 That's about it.  
 -Phil
 
-Copyright 2012,2013 Phil Pennock.
+Copyright 2012,2013,2016 Phil Pennock.

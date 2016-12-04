@@ -1,5 +1,5 @@
 /*
-   Copyright 2009-2012 Phil Pennock
+   Copyright 2009-2012,2016 Phil Pennock
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -19,40 +19,33 @@ package sks_spider
 import (
 	"fmt"
 	"net"
-	"sort"
 	"strconv"
 	"strings"
 )
 
-import (
-	btree "github.com/philpennock/sks-deps/btree"
-)
-
 const hexDigit = "0123456789abcdef"
 
-type CountrySet struct {
-	ss btree.SortedSet
-}
+type CountrySet sortedSet
 
-func NewCountrySet(s string) *CountrySet {
-	cs := &CountrySet{ss: btree.NewTree(btreeStringLess)}
+func NewCountrySet(s string) CountrySet {
+	cs := CountrySet(newSortedSet())
 	for _, country := range strings.Split(s, ",") {
-		cs.ss.Insert(strings.ToUpper(country))
+		sortedSet(cs).Insert(strings.ToUpper(country))
 	}
 	return cs
 }
 
-func (cs *CountrySet) HasCountry(s string) bool {
-	return cs.ss.Contains(strings.ToUpper(s))
+func (cs CountrySet) HasCountry(s string) bool {
+	return sortedSet(cs).Contains(strings.ToUpper(s))
 }
 
-func (cs *CountrySet) String() string {
-	cList := make([]string, 0, cs.ss.Len())
-	for country := range cs.ss.Data() {
-		cList = append(cList, country)
-	}
-	sort.Strings(cList)
+func (cs CountrySet) String() string {
+	cList := sortedSet(cs).AllData()
 	return strings.Join(cList, ",")
+}
+
+func (cs CountrySet) Initialized() bool {
+	return sortedSet(cs).Tree != nil
 }
 
 func reverseIP(ipstr string) (reversed string, err error) {

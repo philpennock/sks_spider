@@ -1,5 +1,5 @@
 /*
-   Copyright 2009-2013 Phil Pennock
+   Copyright 2009-2013,2016 Phil Pennock
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -52,6 +52,8 @@ var (
 	flStartedFlagfile    = flag.String("started-file", "", "Create this file after started and running")
 	flHttpFetchTimeout   = flag.Duration("http-fetch-timeout", 2*time.Minute, "Timeout for HTTP fetch from SKS servers")
 )
+
+var VersionString string
 
 var serverHeadersNative = map[string]bool{
 	"sks_www": true,
@@ -209,7 +211,9 @@ func shutdownRunner(ch <-chan os.Signal) {
 }
 
 func Main() {
-	flag.Parse()
+	if !flag.Parsed() {
+		flag.Parse()
+	}
 
 	if *flScanIntervalJitter < 0 {
 		fmt.Fprintf(os.Stderr, "Bad jitter, must be >= 0 [got: %d]\n", *flScanIntervalJitter)

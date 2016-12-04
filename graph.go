@@ -1,5 +1,5 @@
 /*
-   Copyright 2009-2012 Phil Pennock
+   Copyright 2009-2012,2016 Phil Pennock
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -20,51 +20,27 @@ import (
 	"strings"
 )
 
-import (
-	btree "github.com/philpennock/sks-deps/btree"
-	// gotgo
-	// in-dir: gotgo -o btree.go btree.got string
-	// top: go install github.com/philpennock/sks-deps/btree
-)
-
 // This is not memory efficient but for this few hosts, does not need to be
 
 type HostGraph struct {
 	maxLen   int
 	aliases  AliasMap
-	outbound map[string]btree.SortedSet
-	inbound  map[string]btree.SortedSet
-}
-
-func btreeStringLess(a, b string) bool {
-	return a < b
-}
-
-// This is horrid, would ideally create a second instantiation of btree not
-// using strings.
-func btreeHostLess(a, b string) bool {
-	tmp := strings.Split(a, ".")
-	ReverseStringSlice(tmp)
-	revA := strings.Join(tmp, ".")
-	tmp = strings.Split(b, ".")
-	ReverseStringSlice(tmp)
-	revB := strings.Join(tmp, ".")
-	return revA < revB
+	outbound collectionOfSortedSets
+	inbound  collectionOfSortedSets
 }
 
 func NewHostGraph(count int, aliasMap AliasMap) *HostGraph {
-	outbound := make(map[string]btree.SortedSet, count)
-	inbound := make(map[string]btree.SortedSet, count)
-	return &HostGraph{maxLen: count, aliases: aliasMap, outbound: outbound, inbound: inbound}
+	return &HostGraph{
+		maxLen:   count,
+		aliases:  aliasMap,
+		outbound: newCollectionOfSortedSets(count),
+		inbound:  newCollectionOfSortedSets(count),
+	}
 }
 
 func (hg *HostGraph) addHost(name string, info *SksNode) {
-	if _, ok := hg.outbound[name]; !ok {
-		hg.outbound[name] = btree.NewTree(btreeStringLess)
-	}
-	if _, ok := hg.inbound[name]; !ok {
-		hg.inbound[name] = btree.NewTree(btreeStringLess)
-	}
+	hg.outbound.Ensure(name)
+	hg.inbound.Ensure(name)
 	for _, peerAsGiven := range info.GossipPeerList {
 		var peerCanonical string
 		if canon, ok := hg.aliases[strings.ToLower(peerAsGiven)]; ok {
@@ -78,11 +54,8 @@ func (hg *HostGraph) addHost(name string, info *SksNode) {
 				hg.aliases[peerAsGiven] = lowered
 			}
 		}
-		hg.outbound[name].Insert(peerCanonical)
-		if _, ok := hg.inbound[peerCanonical]; !ok {
-			hg.inbound[peerCanonical] = btree.NewTree(btreeStringLess)
-		}
-		hg.inbound[peerCanonical].Insert(name)
+		hg.outbound.Insert(name, peerCanonical)
+		hg.inbound.Insert(peerCanonical, name)
 	}
 }
 
@@ -90,10 +63,8 @@ func (hg *HostGraph) addHost(name string, info *SksNode) {
 // I don't want to deal with nil's elsewhere
 func (hg *HostGraph) fixOutbounds() {
 	for k := range hg.inbound {
-		for hn := range hg.inbound[k].Data() {
-			if _, ok := hg.outbound[hn]; !ok {
-				hg.outbound[hn] = btree.NewTree(btreeStringLess)
-			}
+		for _, hn := range hg.inbound[k].AllData() {
+			hg.outbound.Ensure(hn)
 		}
 	}
 }
@@ -121,7 +92,7 @@ func (hg *HostGraph) AllPeersOf(name string) []string {
 	if !ok {
 		return []string{}
 	}
-	allPeers := btree.NewTree(btreeHostLess)
+	allPeers := newHostReversedSet()
 	if _, ok := hg.outbound[canonName]; ok {
 		for out := range hg.outbound[canonName].Data() {
 			allPeers.Insert(out)

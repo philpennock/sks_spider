@@ -1,5 +1,5 @@
 /*
-   Copyright 2009-2012 Phil Pennock
+   Copyright 2009-2012,2016 Phil Pennock
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -27,10 +27,6 @@ import (
 	"time"
 )
 
-import (
-	btree "github.com/philpennock/sks-deps/btree"
-)
-
 func apiIpValidPage(w http.ResponseWriter, req *http.Request) {
 	var err error
 	if err = req.ParseForm(); err != nil {
@@ -41,7 +37,7 @@ func apiIpValidPage(w http.ResponseWriter, req *http.Request) {
 		showStats        bool
 		emitJson         bool
 		limitToProxies   bool
-		limitToCountries *CountrySet
+		limitToCountries CountrySet
 	)
 	if _, ok := req.Form["stats"]; ok {
 		showStats = true
@@ -130,10 +126,10 @@ func apiIpValidPage(w http.ResponseWriter, req *http.Request) {
 		count_servers_too_old         int
 		count_servers_unwanted_server int
 		count_servers_wrong_country   int
-		ips_skip_1010                 btree.SortedSet = btree.NewTree(btreeStringLess)
-		ips_too_old                   btree.SortedSet = btree.NewTree(btreeStringLess)
-		ips_unwanted_server           btree.SortedSet = btree.NewTree(btreeStringLess)
-		ips_wrong_country             btree.SortedSet = btree.NewTree(btreeStringLess)
+		ips_skip_1010                 = newSortedSet()
+		ips_too_old                   = newSortedSet()
+		ips_unwanted_server           = newSortedSet()
+		ips_wrong_country             = newSortedSet()
 	)
 
 	for _, name := range persisted.Sorted {
@@ -171,7 +167,7 @@ func apiIpValidPage(w http.ResponseWriter, req *http.Request) {
 			}
 		}
 
-		if limitToCountries != nil {
+		if limitToCountries.Initialized() {
 			var keep bool
 			for _, ip := range node.IpList {
 				geo, ok := persisted.IPCountryMap[ip]
@@ -343,8 +339,8 @@ func apiIpValidPage(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	filterOut := func(rationale string, eliminate btree.SortedSet, eliminate_server_count int, candidates []string) []string {
-		alreadyDropped := btree.NewTree(btreeStringLess)
+	filterOut := func(rationale string, eliminate sortedSet, eliminate_server_count int, candidates []string) []string {
+		alreadyDropped := newSortedSet()
 		for ip := range eliminate.Data() {
 			alreadyDropped.Insert(ip)
 		}
@@ -376,7 +372,7 @@ func apiIpValidPage(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	if limitToCountries != nil {
+	if limitToCountries.Initialized() {
 		ips = filterOut(fmt.Sprintf("not in countries [%s]", limitToCountries), ips_wrong_country, count_servers_wrong_country, ips)
 		if len(ips) == 0 {
 			abortMessage(fmt.Sprintf("No_servers_left_after_country_filter_[%s]", limitToCountries))
@@ -414,7 +410,7 @@ func apiIpValidPage(w http.ResponseWriter, req *http.Request) {
 	if limitToProxies {
 		statusD["proxies"] = "1"
 	}
-	if limitToCountries != nil {
+	if limitToCountries.Initialized() {
 		statusD["countries"] = limitToCountries.String()
 	}
 	statusD["minimum"] = threshold

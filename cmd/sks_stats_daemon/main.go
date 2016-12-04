@@ -1,15 +1,5 @@
-// Wrapper to ensure binary has correct name
-
-// +build ignore
-
-package main
-
-import "github.com/philpennock/sks_spider"
-
-func main() { sks_spider.Main() }
-
 /*
-   Copyright 2009-2012 Phil Pennock
+   Copyright 2009-2012,2016 Phil Pennock
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -23,3 +13,35 @@ func main() { sks_spider.Main() }
    See the License for the specific language governing permissions and
    limitations under the License.
 */
+
+package main
+
+import (
+	"flag"
+	"fmt"
+	"os"
+
+	"github.com/philpennock/sks_spider"
+)
+
+var cmdFlags struct {
+	showVersion bool
+}
+
+func init() {
+	flag.BoolVar(&cmdFlags.showVersion, "version", false, "show version & exit")
+}
+
+func main() {
+	flag.Parse()
+
+	if cmdFlags.showVersion {
+		if sks_spider.VersionString == "" {
+			sks_spider.VersionString = "<unknown>"
+		}
+		fmt.Printf("%s: version %s\n", os.Args[0], sks_spider.VersionString)
+		os.Exit(0)
+	}
+
+	sks_spider.Main()
+}
