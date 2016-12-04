@@ -43,7 +43,8 @@ func SpiderDiagnostics(out io.Writer) {
 // spiderMainLoop(), which calls us, will signal on diagnosticSpiderDone when done
 func (spider *Spider) diagnosticDumpInRoutine(out io.Writer) {
 	fmt.Fprintf(out, "BatchAddHost: %d / %d\n", len(spider.batchAddHost), cap(spider.batchAddHost))
-	fmt.Fprintf(out, "Waitgroup: %#+v\n", spider.pending)
+	// We can no longer print %#+v the spider.pending sync.WaitGroup because it's marked noCopy and
+	// the print counts as a copy for the purposes of `go vet`
 	hostnames := make([]string, len(spider.pendingHosts))
 	i := 0
 	for h := range spider.pendingHosts {
