@@ -1,5 +1,5 @@
 /*
-   Copyright 2009-2013 Phil Pennock
+   Copyright 2009-2013,2018 Phil Pennock
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import (
 	"html/template"
 	"net/http"
 	_ "net/http/pprof"
+	"sort"
 	"strings"
 	"time"
 )
@@ -287,11 +288,17 @@ func apiHostnamesJsonPage(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "Failed to parse form information", http.StatusBadRequest)
 		return
 	}
+	// we want to allow empty value to just mean 'yes',
+	// so the .Get() API doesn't work for us
 	all := false
 	if _, ok := req.Form["all"]; ok {
 		all = true
 	} else if _, ok := req.Form["mesh"]; ok {
 		all = true
+	}
+	alphaSort := false
+	if _, ok := req.Form["sort"]; ok {
+		alphaSort = true
 	}
 
 	var hostList []string
@@ -316,6 +323,12 @@ func apiHostnamesJsonPage(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, "Problem loading membership file", http.StatusServiceUnavailable)
 			return
 		}
+	}
+
+	if alphaSort {
+		sort.Strings(hostList)
+	} else {
+		HostSort(hostList)
 	}
 
 	b, err := json.Marshal(hostList)
