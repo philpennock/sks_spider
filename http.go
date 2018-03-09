@@ -164,6 +164,7 @@ func apiPeersPage(w http.ResponseWriter, req *http.Request) {
 		attributes["Hostname"] = host
 		attributes["Sks_info"] = NodeUrl(host, node)
 		attributes["Info_page"] = fmt.Sprintf(SERVE_PREFIX+"/peer-info?peer=%s", host)
+		attributes["Distance"] = node.Distance
 
 		if node.AnalyzeError != "" {
 			attributes["Error"] = node.AnalyzeError
@@ -186,7 +187,6 @@ func apiPeersPage(w http.ResponseWriter, req *http.Request) {
 		}
 		attributes["Version"] = node.Version
 		attributes["Keycount"] = node.Keycount
-		attributes["Distance"] = node.Distance
 		attributes["Web_server"] = node.ServerHeader
 		if node.ViaHeader != "" {
 			attributes["Via_info"] = fmt.Sprintf("✓ [%s]", node.ViaHeader)

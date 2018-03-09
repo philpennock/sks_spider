@@ -1,5 +1,5 @@
 /*
-   Copyright 2009-2013 Phil Pennock
+   Copyright 2009-2013,2018 Phil Pennock
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -100,7 +100,9 @@ func prepareTemplates() {
    <tr class="peer host failure {{.Rowclass}}">
     <td class="hostname">{{.Hostname}}</td>
     <td class="morelink"><a href="{{.Info_page}}">&dagger;</a></td>
-    <td class="exception" colspan="8">Error: {{.Error}}</td>
+    <td class="exception" colspan="5">Error: {{.Error}}</td>
+    <td class="peer_distance">{{.Distance}}</td>
+	<td colspan="2"></td>
    </tr>
 `
 
