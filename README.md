@@ -58,26 +58,15 @@ To-Do
   the logfile.
 
 
-Packages
---------
-
-Scott Grayban provides pre-built binaries for Linux/ELF x86 (i686)
-32-bit-capable userland systems at <https://keyserver.borgnet.us/downloads/>
-(natively built on Debian).
-I am not in a position to vouch for these builds, but am grateful to
-Scott for providing them.
-
-
 Building
 --------
 
 To fetch the code, all dependencies, updating them, and install the command,
 then run:
 
-    mkdir ~/go
-    export GOPATH=~/go
-
-    go get -d -u -v github.com/philpennock/sks_spider/...
+    go get -u -v github.com/philpennock/sks_spider/...
+    # optionally:
+    cd ~/go/src/github.com/philpennock/sks_spider
     make
 
 You don't _have_ to use `make`, but it does embed a version string into the
