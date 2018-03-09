@@ -1,5 +1,5 @@
 /*
-   Copyright 2009-2013,2016 Phil Pennock
+   Copyright 2009-2013,2016,2018 Phil Pennock
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -38,7 +38,6 @@ var (
 	flSksMembershipFile  = flag.String("sks-membership-file", "/var/sks/membership", "SKS Membership file")
 	flSksPortRecon       = flag.Int("sks-port-recon", 11370, "Default SKS recon port")
 	flSksPortHkp         = flag.Int("sks-port-hkp", 11371, "Default SKS HKP port")
-	flTimeoutStatsFetch  = flag.Int("timeout-stats-fetch", 30, "Timeout for fetching stats from a remote server")
 	flCountriesZone      = flag.String("countries-zone", "zz.countries.nerd.dk.", "DNS zone for determining IP locations")
 	flKeysSanityMin      = flag.Int("keys-sanity-min", 4500000, "Minimum number of keys that's sane, or we're broken")
 	flKeysDailyJitter    = flag.Int("keys-daily-jitter", 800, "Max daily jitter in key count")
@@ -50,7 +49,7 @@ var (
 	flJsonLoad           = flag.String("json-load", "", "File to load JSON hosts from instead of spidering")
 	flJsonPersistPath    = flag.String("json-persist", "", "File to load at startup if exists, and write to at SIGUSR1")
 	flStartedFlagfile    = flag.String("started-file", "", "Create this file after started and running")
-	flHttpFetchTimeout   = flag.Duration("http-fetch-timeout", 2*time.Minute, "Timeout for HTTP fetch from SKS servers")
+	flHttpFetchTimeout   = flag.Duration("http-fetch-timeout", 30*time.Second, "Timeout for HTTP fetch from SKS servers")
 )
 
 var VersionString string

@@ -1,5 +1,5 @@
 /*
-   Copyright 2009-2013 Phil Pennock
+   Copyright 2009-2013,2017 Phil Pennock
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package sks_spider
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -24,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // "go-html-transform" -- crashes parsing SKS output
@@ -127,17 +129,24 @@ func (sn *SksNode) Minimize() {
 
 func (sn *SksNode) Fetch() error {
 	sn.Normalize()
+
 	req, err := http.NewRequest("GET", sn.uri, nil)
 	if err != nil {
 		return err
 	}
+	// allow more time for whole context than for HTTP headers, hanoi stacking
+	ctx, cancel := context.WithTimeout(context.Background(), *flHttpFetchTimeout+2*time.Second)
+	defer cancel()
+	req = req.WithContext(ctx)
 	req.Header.Set("User-Agent", "sks_peers/0.2 (SKS mesh spidering)")
 	cl := getHTTPClient()
+
 	resp, err := cl.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
 	sn.Status = resp.Status
 	Log.Printf("[%s] Response status: %s", sn.Hostname, sn.Status)
 	sn.ServerHeader = resp.Header.Get("Server")
