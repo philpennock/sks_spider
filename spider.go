@@ -340,7 +340,7 @@ func (spider *Spider) processHostResult(hr *HostResult) {
 	}
 	own_hostname, ok := node.Settings["Hostname"]
 
-	if ok && own_hostname != hostname {
+	if ok && own_hostname != hostname && strings.Contains(own_hostname, ".") {
 		canonical = own_hostname
 		oldnode, ok2 := spider.serverInfos[canonical]
 		if ok2 && oldnode != nil {
