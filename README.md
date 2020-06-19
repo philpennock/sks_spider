@@ -3,7 +3,7 @@ sks\_spider
 
 Tool to spider the PGP SKS keyserver mesh.
 
-[![Build Status](https://api.travis-ci.org/philpennock/sks_spider.png?branch=master)](https://travis-ci.org/philpennock/sks\_spider)
+[![Build Status](https://api.travis-ci.org/philpennock/sks_spider.png?branch=main)](https://travis-ci.org/philpennock/sks\_spider)
 
 This code-base is horrible; it was predominantly written in a weekend, porting
 from some very organic Python.  Do not use this as an example of how to do
