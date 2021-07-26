@@ -14,9 +14,9 @@ Bit Rot 2021 Edition
 
 **This code is old and the dependencies have rotted away**
 
-To even build this, you'll need `export GO111MODULE=off` for modern Go
-compilers, and then for the Gokogiri dependency you will need
-libxml development headers installed and a code fix applied to
+For the Gokogiri dependency you will need libxml development headers installed
+(for APT-based systems, incant `apt-get install libxml2-dev`),
+and a code fix applied to
 `~/go/src/github.com/moovweb/gokogiri/xml/document.go` :
 
 ```diff
@@ -35,10 +35,7 @@ index 5645239..63f2a8b 100644
  	return
 ```
 
-After that, note that the default `-spider-start-host` has gone, so spidering
-will fail.  You will minimally need that option.  Logs are written to the file
-`sksdaemon.log` in the current working directory, by default, so further
-diagnostics are available there.
+Logs are written to the file `sksdaemon.log` in the current working directory, by default, so further diagnostics are available there.
 
 
 Overview

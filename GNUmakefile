@@ -7,6 +7,7 @@ endif
 GO_CMD ?= go
 GO_LDFLAGS:=
 BUILD_TAGS:=
+GO111MODULE:=off
 
 ifndef REPO_VERSION
 REPO_VERSION := $(shell ./.version)

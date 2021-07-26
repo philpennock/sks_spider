@@ -21,9 +21,9 @@ import (
 	"testing"
 )
 
-const checkSksHostname = "sks-peer.spodhuis.org"
+const checkSksHostname = "pgpkeys.eu"
 const checkSksIPCount = 2
-const checkSksCountry = "NL"
+const checkSksCountry = "FR"
 const checkSksExpectIPv6HasCountry = false
 
 func TestCountrySpodhuis(t *testing.T) {
