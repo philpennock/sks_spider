@@ -9,35 +9,6 @@ This code-base is horrible; it was predominantly written in a weekend, porting
 from some very organic Python.  Do not use this as an example of how to do
 things in Golang.
 
-Bit Rot 2021 Edition
---------------------
-
-**This code is old and the dependencies have rotted away**
-
-For the Gokogiri dependency you will need libxml development headers installed
-(for APT-based systems, incant `apt-get install libxml2-dev`),
-and a code fix applied to
-`~/go/src/github.com/moovweb/gokogiri/xml/document.go` :
-
-```diff
-diff --git a/xml/document.go b/xml/document.go
-index 5645239..63f2a8b 100644
---- a/xml/document.go
-+++ b/xml/document.go
-@@ -327,7 +328,7 @@ func (document *XmlDocument) CreateTextNode(data string) (text *TextNode) {
- 	dataPtr := unsafe.Pointer(&dataBytes[0])
- 	nodePtr := C.xmlNewText((*C.xmlChar)(dataPtr))
- 	if nodePtr != nil {
--		nodePtr.doc = (*_Ctype_struct__xmlDoc)(document.DocPtr())
-+		nodePtr.doc = (*C.xmlDoc)(document.DocPtr())
- 		text = NewNode(unsafe.Pointer(nodePtr), document).(*TextNode)
- 	}
- 	return
-```
-
-Logs are written to the file `sksdaemon.log` in the current working directory, by default, so further diagnostics are available there.
-
-
 Overview
 --------
 
@@ -88,6 +59,11 @@ To-Do
 
 Building
 --------
+
+You will need development headers installed:
+
+* Debian/Ubuntu etc: `apt-get install libxml2-dev`
+* MacOS: `brew install libxml2`
 
 To fetch the code, all dependencies, updating them, and install the command,
 then run:

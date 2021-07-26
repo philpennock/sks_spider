@@ -26,14 +26,12 @@ import (
 	"strings"
 	"sync"
 	"time"
-)
 
-// "go-html-transform" -- crashes parsing SKS output
-// ehtml "exp/html" -- handles it, no xpath
+	// "go-html-transform" -- crashes parsing SKS output
+	// ehtml "exp/html" -- handles it, no xpath
 
-import (
-	htmlp "github.com/moovweb/gokogiri/html"
-	xml "github.com/moovweb/gokogiri/xml"
+	htmlp "github.com/sergioangulo/gokogiri/html"
+	xml "github.com/sergioangulo/gokogiri/xml"
 )
 
 type SksNode struct {
