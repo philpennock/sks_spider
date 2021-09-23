@@ -1,0 +1,7 @@
+/var/log/sksdaemon.log {
+    rotate 12
+    weekly
+    compress
+    missingok
+}
+
