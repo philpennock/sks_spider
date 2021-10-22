@@ -3,5 +3,7 @@
     weekly
     compress
     missingok
+    postrotate
+        invoke-rc.d sks_stats_daemon restart
+    endscript
 }
-

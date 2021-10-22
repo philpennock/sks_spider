@@ -6,9 +6,7 @@ After=network.target auditd.service
 Type=simple
 WorkingDirectory=/var/log
 ExecStart=/usr/local/bin/sks_stats_daemon
-StandardOutput=null
 Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
-
