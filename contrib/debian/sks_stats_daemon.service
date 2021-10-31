@@ -1,0 +1,12 @@
+[Unit]
+Description=SKS spider
+After=network.target auditd.service
+
+[Service]
+Type=simple
+WorkingDirectory=/var/log
+ExecStart=/usr/local/bin/sks_stats_daemon
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

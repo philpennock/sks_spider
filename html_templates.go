@@ -26,7 +26,7 @@ var serveTemplates map[string]*template.Template
 func genNamespace() map[string]interface{} {
 	ns := make(map[string]interface{}, 50)
 	ns["Maintainer"] = *flMaintEmail
-	ns["MyHostname"] = *flHostname
+	ns["StartHost"] = *flSpiderStartHost
 	ns["MyStylesheet"] = *flMyStylesheet
 	ns["Warning"] = ""
 	return ns
@@ -58,14 +58,14 @@ func prepareTemplates() {
 
 	kPAGE_TEMPLATE_HEAD := kPAGE_TEMPLATE_BASIC_HEAD + `
   <link rev="made" href="mailto:{{.Maintainer}}">
-  <title>{{.MyHostname}} Peer Mesh</title>
+  <title>SKS Peer Mesh</title>
  </head>
  <body>
-  <h1>{{.MyHostname}} Peer Mesh</h1>
+  <h1>SKS Peer Mesh</h1>
 {{.Warning}}
 {{.Scanning_active}}
   <div class="explain">
-   Entries at depth 1 are direct peers of <span class="hostname">{{.MyHostname}}</span>.
+   Entries at depth 1 are direct peers of <span class="hostname">{{.StartHost}}</span>.
    Others are seen by spidering the peers.
   </div>
   <table class="sks peertable">
